@@ -36,7 +36,6 @@ async def health_check():
 async def create_order(
     order_schema: schemas.OrderPost,
     db: AsyncSession = Depends(get_db),
-    machine: Machine = Depends(get_machine)
 ):
     """Create single order endpoint."""
     logger.debug("POST '/order' endpoint called.")
@@ -45,7 +44,7 @@ async def create_order(
 
         for _ in range(order_schema.number_of_pieces):
             db_order = await crud.add_piece_to_order(db, db_order)
-        await machine.add_pieces_to_queue(db_order.pieces)
+        # POST: PIEZA A MATXINE await machine.add_pieces_to_queue(db_order.pieces)
         return db_order
     except Exception as exc:  # @ToDo: To broad exception
         raise_and_log_error(logger, status.HTTP_409_CONFLICT, f"Error creating order: {exc}")
