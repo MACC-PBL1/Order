@@ -47,6 +47,7 @@ async def create_order(
         for _ in range(order_schema.number_of_pieces):
             db_order = await crud.add_piece_to_order(db, db_order)
         # POST: PIEZA A MATXINE MIKROSERBIZIO await machine.add_pieces_to_queue(db_order.pieces)
+        # POST: MANDAR ID DEL ORDER A DELIVERY
         return db_order
     except Exception as exc:  # @ToDo: To broad exception
         raise_and_log_error(logger, status.HTTP_409_CONFLICT, f"Error creating order: {exc}")
