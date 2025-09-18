@@ -42,9 +42,11 @@ async def create_order(
     try:
         db_order = await crud.create_order_from_schema(db, order_schema)
 
+        # POST: ORDERRAN KOPURUA PAYMENTI BIDALI ETA HONEK ONARTU ALA EZ ERANTZUN
+
         for _ in range(order_schema.number_of_pieces):
             db_order = await crud.add_piece_to_order(db, db_order)
-        # POST: PIEZA A MATXINE await machine.add_pieces_to_queue(db_order.pieces)
+        # POST: PIEZA A MATXINE MIKROSERBIZIO await machine.add_pieces_to_queue(db_order.pieces)
         return db_order
     except Exception as exc:  # @ToDo: To broad exception
         raise_and_log_error(logger, status.HTTP_409_CONFLICT, f"Error creating order: {exc}")
@@ -108,14 +110,13 @@ async def get_single_order(
 async def remove_order_by_id(
         order_id: int,
         db: AsyncSession = Depends(get_db),
-        my_machine: Machine = Depends(get_machine)
 ):
     """Remove order"""
     logger.debug("DELETE '/order/%i' endpoint called.", order_id)
     order = await crud.get_order(db, order_id)
     if not order:
         raise_and_log_error(logger, status.HTTP_404_NOT_FOUND, f"Order {order_id} not found")
-    await my_machine.remove_pieces_from_queue(order.pieces)
+    # POST: PIEZA A MATXINE MIKROSERBIZIO await my_machine.remove_pieces_from_queue(order.pieces)
     return await crud.delete_order(db, order_id)
 
 
