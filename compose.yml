@@ -1,11 +1,9 @@
 services:
-  monolithicapp:
-    build: fastapi_app
+  orderapp:
+    build: order_app
     ports:
-      - '13000:8000'
-      - '13443:8443'
+      - '13002:8000'
     volumes:
-      - './fastapi_app:/code'
       - './db_volume:/volume'
     environment:
       PYTHONUNBUFFERED: 1
