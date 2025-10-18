@@ -8,9 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db
 from app.sql import crud, schemas
 from .router_utils import raise_and_log_error
+from app.messaging.rabbitmq import publish_message
 
 
 logger = logging.getLogger(__name__)
+
 
 # ------------------------------------------------------------------------------
 # Router definition
@@ -37,6 +39,9 @@ async def health_check():
 # ------------------------------------------------------------------------------
 # Create Order
 # ------------------------------------------------------------------------------
+
+
+
 @router.post(
     "/",
     response_model=schemas.Order,
@@ -47,13 +52,47 @@ async def create_order(
     order_schema: schemas.OrderPost,
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new order and its pieces."""
+    """Create a new order and publish an event."""
     logger.debug("POST '/order' called with %s", order_schema)
     try:
         db_order = await crud.create_order_from_schema(db, order_schema)
+
+        # --- 🔔 Publicar evento a RabbitMQ ---
+        await publish_message(
+            "order.created",  # 🧭 routing key
+               {                 # 📦 message body
+                   "order_id": db_order.id,
+                   "client_id": db_order.client_id,
+                   "number_of_pieces": db_order.number_of_pieces,
+                    "description": db_order.description,
+                    "status": db_order.status,
+               }
+            )
+
+        logger.info(f"Published 'order.created' event for order {db_order.id}")
         return db_order
-    except Exception as exc:  # TODO: add more specific exception handling
+
+    except Exception as exc:
         raise_and_log_error(logger, status.HTTP_409_CONFLICT, f"Error creating order: {exc}")
+
+
+# @router.post(
+#     "/",
+#     response_model=schemas.Order,
+#     summary="Create a new order",
+#     status_code=status.HTTP_201_CREATED,
+# )
+# async def create_order(
+#     order_schema: schemas.OrderPost,
+#     db: AsyncSession = Depends(get_db),
+# ):
+#     """Create a new order and its pieces."""
+#     logger.debug("POST '/order' called with %s", order_schema)
+#     try:
+#         db_order = await crud.create_order_from_schema(db, order_schema)
+#         return db_order
+#     except Exception as exc:  # TODO: add more specific exception handling
+#         raise_and_log_error(logger, status.HTTP_409_CONFLICT, f"Error creating order: {exc}")
 
 
 # ------------------------------------------------------------------------------

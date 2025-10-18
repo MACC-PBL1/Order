@@ -1,12 +1,40 @@
 services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
+    networks:
+      - app-net
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+
   orderapp:
     build: order_app
+    container_name: order_app
     ports:
-      - '13002:8000'
+      - "13002:8000"
     volumes:
-      - './db_volume:/volume'
+      - "./db_volume:/volume"
     environment:
       PYTHONUNBUFFERED: 1
       SQLALCHEMY_DATABASE_URL: ${SQLALCHEMY_SQLITE_DATABASE_URI}
+      RABBITMQ_URL: amqp://user:password@rabbitmq:5672/
     restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - app-net
 
+networks:
+  app-net:
+    driver: bridge
