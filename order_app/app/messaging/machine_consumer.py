@@ -24,7 +24,7 @@ async def handle_machine_event(message: aio_pika.IncomingMessage):
                     await crud.update_piece_status(db, piece_id, models.Piece.STATUS_MANUFACTURING)
 
                 elif routing_key == "piece.finished":
-                    logger.info(f"✅ Machine finished manufacturing piece {piece_id}")
+                    logger.info(f"Machine finished manufacturing piece {piece_id}")
                     piece = await crud.update_piece_status(db, piece_id, models.Piece.STATUS_MANUFACTURED)
                     await crud.update_piece_status(db, piece_id, models.Piece.STATUS_MANUFACTURED)
 
@@ -41,7 +41,7 @@ async def handle_machine_event(message: aio_pika.IncomingMessage):
                         await crud.update_order_status(db, order_id, models.Order.STATUS_COMPLETED)
 
         except Exception as e:
-            logger.error(f"❌ Error processing machine event: {e}")
+            logger.error(f" Error processing machine event: {e}")
 
 
 async def start_machine_consumer():
@@ -66,5 +66,5 @@ async def start_machine_consumer():
         return connection
 
     except Exception as e:
-        logger.error(f"❌ Failed to start Machine consumer: {e}")
+        logger.error(f" Failed to start Machine consumer: {e}")
         return None

@@ -28,12 +28,12 @@ async def init_rabbitmq(retries: int = 10, delay: int = 3):
             logger.info(f"Connecting to RabbitMQ (attempt {attempt}/{retries}): {RABBITMQ_URL}")
             connection = await aio_pika.connect_robust(RABBITMQ_URL)
             channel = await connection.channel()
-            logger.info("✅ Connected to RabbitMQ successfully.")
+            logger.info(" Connected to RabbitMQ successfully.")
             return
         except Exception as e:
-            logger.error(f"❌ Error connecting to RabbitMQ: {e}")
+            logger.error(f" Error connecting to RabbitMQ: {e}")
             if attempt == retries:
-                logger.error("🚨 Failed to connect to RabbitMQ after multiple attempts.")
+                logger.error(" Failed to connect to RabbitMQ after multiple attempts.")
                 return
             attempt += 1
             await asyncio.sleep(delay)
@@ -63,7 +63,7 @@ async def publish_message(routing_key: str, message: dict):
         exchange = await channel.declare_exchange("order_exchange", aio_pika.ExchangeType.DIRECT)
         body = json.dumps(message).encode()
         await exchange.publish(aio_pika.Message(body=body), routing_key=routing_key)
-        logger.info(f"📤 Published message → order_exchange:{routing_key} → {message}")
+        logger.info(f" Published message → order_exchange:{routing_key} → {message}")
     except Exception as e:
-        logger.error("❌ Failed to publish message: %s", str(e))
+        logger.error(" Failed to publish message: %s", str(e))
 

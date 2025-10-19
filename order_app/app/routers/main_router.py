@@ -35,12 +35,9 @@ async def health_check():
     logger.debug("GET '/order/health' called.")
     return {"detail": "Order service is running"}
 
-
 # ------------------------------------------------------------------------------
 # Create Order
 # ------------------------------------------------------------------------------
-
-
 
 @router.post(
     "/",
@@ -57,10 +54,10 @@ async def create_order(
     try:
         db_order = await crud.create_order_from_schema(db, order_schema)
 
-        # --- 🔔 Publicar evento a RabbitMQ ---
+        # --- Publicar evento a RabbitMQ ---
         await publish_message(
-            "order.created",  # 🧭 routing key
-               {                 # 📦 message body
+            "order.created",  # routing key
+               {                 #  message body
                    "order_id": db_order.id,
                    "client_id": db_order.client_id,
                    "number_of_pieces": db_order.number_of_pieces,
@@ -74,25 +71,6 @@ async def create_order(
 
     except Exception as exc:
         raise_and_log_error(logger, status.HTTP_409_CONFLICT, f"Error creating order: {exc}")
-
-
-# @router.post(
-#     "/",
-#     response_model=schemas.Order,
-#     summary="Create a new order",
-#     status_code=status.HTTP_201_CREATED,
-# )
-# async def create_order(
-#     order_schema: schemas.OrderPost,
-#     db: AsyncSession = Depends(get_db),
-# ):
-#     """Create a new order and its pieces."""
-#     logger.debug("POST '/order' called with %s", order_schema)
-#     try:
-#         db_order = await crud.create_order_from_schema(db, order_schema)
-#         return db_order
-#     except Exception as exc:  # TODO: add more specific exception handling
-#         raise_and_log_error(logger, status.HTTP_409_CONFLICT, f"Error creating order: {exc}")
 
 
 # ------------------------------------------------------------------------------
