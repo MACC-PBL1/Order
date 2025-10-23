@@ -8,11 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db
 from app.sql import crud, schemas
 from .router_utils import raise_and_log_error
-from app.messaging.rabbitmq import publish_message
-
+from microservice_chassis.events import EventPublisher
 
 logger = logging.getLogger(__name__)
 
+# Instancia global del publisher (se conecta al iniciar)
+event_publisher = EventPublisher(exchange="factory.events")
 
 # ------------------------------------------------------------------------------
 # Router definition
@@ -40,7 +41,7 @@ async def health_check():
 # ------------------------------------------------------------------------------
 
 @router.post(
-    "/",
+    "/create_order",
     response_model=schemas.Order,
     summary="Create a new order",
     status_code=status.HTTP_201_CREATED,
@@ -54,19 +55,19 @@ async def create_order(
     try:
         db_order = await crud.create_order_from_schema(db, order_schema)
 
-        # --- Publicar evento a RabbitMQ ---
-        await publish_message(
-            "order.created",  # routing key
-               {                 #  message body
-                   "order_id": db_order.id,
-                   "client_id": db_order.client_id,
-                   "number_of_pieces": db_order.number_of_pieces,
-                    "description": db_order.description,
-                    "status": db_order.status,
-               }
-            )
+        # --- Publicar evento a RabbitMQ usando EventPublisher ---
+        event_publisher.publish(
+            "machine.request_piece",  # routing key
+            {                 # message body
+                "order_id": db_order.id,
+                "client_id": db_order.client_id,
+                "piece_amount": db_order.number_of_pieces,
+                "description": db_order.description,
+                "status": db_order.status,
+            }
+        )
 
-        logger.info(f"Published 'order.created' event for order {db_order.id}")
+        logger.info(f"Published 'machine.request_piece' event for order {db_order.id}")
         return db_order
 
     except Exception as exc:

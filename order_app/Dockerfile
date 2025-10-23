@@ -2,9 +2,9 @@ FROM python:3.12-slim-bookworm
 
 # Set working directory
 WORKDIR /home/pyuser/code
-
+COPY Chassis/dist/microservice_chassis-0.3.0-py3-none-any.whl ./Chassis/dist/
 # Copy requirements and install globally
-COPY requirements.txt .
+COPY Order/order_app/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
@@ -13,9 +13,9 @@ RUN useradd -u 1000 -m pyuser && \
     chown -R pyuser:pyuser /home/pyuser
 
 # Copy entrypoint and app
-COPY entrypoint.sh .
+COPY Order/order_app/entrypoint.sh .
 RUN chmod +x entrypoint.sh
-COPY app ./app
+COPY Order/order_app/app ./app
 
 # Switch to non-root user
 USER pyuser

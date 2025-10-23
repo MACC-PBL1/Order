@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """Main file to start FastAPI application for the Order microservice."""
 
+import asyncio
 import logging.config
 import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.routers import main_router
+from app.routers.main_router import event_publisher
 from app.sql import models, database
-from app.messaging.rabbitmq import init_rabbitmq, close_rabbitmq
-#from app.messaging.consumer import start_consumer
-from app.messaging.machine_consumer import start_machine_consumer
+from app.messaging.machine_consumer import MachineEventConsumer
 
 # -----------------------------------------------------------------------------------------------
 # Logging configuration
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Handle Order microservice startup and shutdown."""
     try:
-        logger.info(" Starting up Order microservice...")
+        logger.info("🚀 Starting up Order microservice...")
 
         # 🗄️ Crear tablas si no existen
         try:
@@ -33,31 +33,48 @@ async def lifespan(app: FastAPI):
             async with database.engine.begin() as conn:
                 await conn.run_sync(models.Base.metadata.create_all)
         except Exception as e:
-            logger.error(" Error creating tables: %s", str(e))
+            logger.error("❌ Error creating tables: %s", str(e))
 
-        #  Inicializar conexión a RabbitMQ
-        await init_rabbitmq()
+        # 📡 Conectar el EventPublisher
+        try:
+            logger.info("Connecting EventPublisher to RabbitMQ...")
+            event_publisher.connect()
+            logger.info("✅ EventPublisher connected")
+        except Exception as e:
+            logger.error("❌ Error connecting EventPublisher: %s", str(e))
 
-        # Iniciar el consumer de Machine (escucha eventos piece.started / piece.finished)
-        app.state.machine_connection = await start_machine_consumer()
-
-        # (Opcional) Si tienes otros consumers, también puedes arrancarlos aquí:
-        # app.state.order_connection = await start_consumer()
+        # 👂 Iniciar el consumer de Machine (escucha eventos de machine.events)
+        try:
+            logger.info("Starting Machine event consumer...")
+            machine_consumer = MachineEventConsumer()
+            # Ejecutar el consumer en background
+            app.state.machine_consumer_task = asyncio.create_task(machine_consumer.start())
+            logger.info("✅ Machine event consumer started")
+        except Exception as e:
+            logger.error("❌ Error starting Machine consumer: %s", str(e))
 
         logger.info("✅ Order microservice started and listening for Machine events.")
         yield
 
     finally:
-        #  Cerrar conexiones al apagar el servicio
         logger.info("🧹 Shutting down Order microservice gracefully...")
-        if hasattr(app.state, "machine_connection"):
-            await app.state.machine_connection.close()
+        
+        # Cancelar el consumer task
+        if hasattr(app.state, "machine_consumer_task"):
+            app.state.machine_consumer_task.cancel()
+            try:
+                await app.state.machine_consumer_task
+            except asyncio.CancelledError:
+                logger.info("Machine consumer task cancelled")
 
-        # Si hay otros consumers, ciérralos también
-        # if hasattr(app.state, "order_connection"):
-        #     await app.state.order_connection.close()
+        # Cerrar el EventPublisher
+        try:
+            event_publisher.close()
+            logger.info("EventPublisher closed")
+        except Exception as e:
+            logger.warning("Error closing EventPublisher: %s", e)
 
-        await close_rabbitmq()
+        # Cerrar engine de base de datos
         await database.engine.dispose()
         logger.info("🔌 Order microservice shutdown complete.")
 

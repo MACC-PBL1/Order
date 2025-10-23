@@ -6,8 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from . import models, schemas
-
+from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
+from microservice_chassis.errors import raise_and_log_error
 
 # ================================================================================================
 # ORDER CRUD OPERATIONS
@@ -95,3 +96,19 @@ async def update_order_status(db: AsyncSession, order_id: int, status: str):
     else:
         logger.warning("Order id=%s not found for update", order_id)
     return db_order
+
+async def update_piece_status(db, piece_id: int, new_status: str):
+    """Update the status (and manufacturing date) of a piece."""
+    result = await db.execute(
+    select(models.Piece).where(models.Piece.id == piece_id))
+    piece = result.unique().scalar_one_or_none()
+
+    if not piece:
+        raise_and_log_error(404, f"Piece {piece_id} not found")
+
+    piece.status = new_status
+    piece.manufacturing_date = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(piece)
+    return piece
