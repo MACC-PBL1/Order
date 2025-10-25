@@ -14,15 +14,15 @@ from microservice_chassis.errors import raise_and_log_error
 # ORDER CRUD OPERATIONS
 # ================================================================================================
 
-async def create_order_from_schema(db: AsyncSession, order: schemas.OrderPost) -> models.Order:
+async def create_order_from_schema(db: AsyncSession, order: schemas.OrderPost, client_id: int) -> models.Order:
     """
     Persist a new order into the database.
     Automatically creates the requested number of pieces.
     """
-    logger.info("Creating new order for client_id=%s with %s pieces", order.client_id, order.number_of_pieces)
+    logger.info("Creating new order for client_id=%s with %s pieces", client_id, order.number_of_pieces)
 
     db_order = models.Order(
-        client_id=order.client_id,
+        client_id=client_id,  
         number_of_pieces=order.number_of_pieces,
         description=order.description,
         status=models.Order.STATUS_CREATED

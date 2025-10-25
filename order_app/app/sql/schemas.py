@@ -80,23 +80,17 @@ class Piece(PieceBase):
 # -----------------------------------------------------------------------------------------------
 
 
-class OrderBase(BaseModel): #lo que recibimos desde el cliente
-    """Order base schema definition."""
-    client_id: int = Field(
-        description="ID of the client who created the order",
-        example=42
-    )
+class OrderBase(BaseModel):
+    """Base order schema (used for creation and update)."""
     number_of_pieces: int = Field(
         description="Number of pieces to manufacture for the new order",
-        default=None,
         example=10
     )
     description: str = Field(
         description="Human readable description for the order",
         default="No description",
-        example="CompanyX order on 2022-01-20"
+        example="CompanyX order on 2025-10-25"
     )
-
     #  pieces = relationship("Piece", lazy="joined")
 
 class OrderPost(OrderBase):
@@ -120,6 +114,10 @@ class Order(OrderBase):#esquema de respuesta
         description="Primary key/identifier of the order.",
         example=1
     )
+    client_id: Optional[int] = Field(
+        description="Client ID who created the order",
+        example=42
+    )
     status: str = Field(
         description="Current status of the order",
         default="Created",
@@ -135,8 +133,3 @@ class Order(OrderBase):#esquema de respuesta
         default_factory=list,
         description="List of pieces associated with the order"
     )
-
-
-class OrderPost(OrderBase):
-    """Schema definition to create a new order."""
-

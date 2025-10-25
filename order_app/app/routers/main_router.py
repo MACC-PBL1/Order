@@ -3,12 +3,17 @@
 
 import logging
 from typing import List
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Request, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db
 from app.sql import crud, schemas
 from .router_utils import raise_and_log_error
 from microservice_chassis.events import EventPublisher
+
+from app.security.jwt_utils import verify_jwt
+import os
+import jwt
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError 
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +42,48 @@ async def health_check():
     return {"detail": "Order service is running"}
 
 # ------------------------------------------------------------------------------
+# Health check auth
+# ------------------------------------------------------------------------------
+@router.get(
+    "/health/auth",
+    summary="Health check endpoint (JWT protected)",
+)
+async def health_check(request: Request):
+    """Verify service availability and print the client info from the JWT payload."""
+    logger.debug("GET '/order/health/auth' called.")
+
+    # Leer el token JWT del header Authorization
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+        )
+
+    token = auth_header.split(" ")[1]
+
+    # Verificar el JWT usando la función centralizada
+    try:
+        payload = verify_jwt(token)
+
+        user_id = payload.get("sub")
+        user_email = payload.get("email")
+        user_role = payload.get("role")
+
+        logger.info(f" Valid JWT: user_id={user_id}, email={user_email}, role={user_role}")
+
+        return {
+            "detail": f"Order service is running. Authenticated as {user_email} (id={user_id}, role={user_role})"
+        }
+
+    except Exception as e:
+        logger.error(f" JWT verification failed: {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    
+
+        return {"detail": "Order service is running"}
+
+# ------------------------------------------------------------------------------
 # Create Order
 # ------------------------------------------------------------------------------
 
@@ -47,13 +94,40 @@ async def health_check():
     status_code=status.HTTP_201_CREATED,
 )
 async def create_order(
+    request: Request,
     order_schema: schemas.OrderPost,
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a new order and publish an event."""
-    logger.debug("POST '/order' called with %s", order_schema)
+    """Create a new order and publish an event, only if JWT is valid."""
+    logger.debug("POST '/order/create_order' called with %s", order_schema)
+
+    # --- Verificación JWT ---
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+        )
+    
+    token = auth_header.split(" ")[1]
     try:
-        db_order = await crud.create_order_from_schema(db, order_schema)
+        payload = verify_jwt(token)
+        user_id = payload.get("sub")
+        user_email = payload.get("email")
+        user_role = payload.get("role")
+        logger.info(f" Order creation authorized for user {user_email} (id={user_id}, role={user_role})")
+
+    except Exception as e:
+        logger.error(f" JWT verification failed during order creation: {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    
+    # --- Crear orden en DB ---
+    try:
+        db_order = await crud.create_order_from_schema(
+            db=db,
+            order=order_schema,
+            client_id=user_id,  
+        )
 
         # --- Publicar evento a RabbitMQ usando EventPublisher ---
         event_publisher.publish(
@@ -64,14 +138,16 @@ async def create_order(
                 "piece_amount": db_order.number_of_pieces,
                 "description": db_order.description,
                 "status": db_order.status,
+                "created_by": user_id,  
             }
         )
 
-        logger.info(f"Published 'machine.request_piece' event for order {db_order.id}")
+        logger.info(f"Published 'machine.request_piece' event for order {db_order.id} by {user_email}")
         return db_order
 
     except Exception as exc:
         raise_and_log_error(logger, status.HTTP_409_CONFLICT, f"Error creating order: {exc}")
+
 
 
 # ------------------------------------------------------------------------------
