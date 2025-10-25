@@ -8,17 +8,34 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db
 from app.sql import crud, schemas
 from .router_utils import raise_and_log_error
-from microservice_chassis.events import EventPublisher
+from chassis.security.jwt_utils import verify_jwt
 
-from app.security.jwt_utils import verify_jwt
 import os
 import jwt
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError 
 
 logger = logging.getLogger(__name__)
 
-# Instancia global del publisher (se conecta al iniciar)
-event_publisher = EventPublisher(exchange="factory.events")
+from chassis.messaging.publisher import RabbitMQPublisher
+from chassis.messaging.types import RabbitMQConfig
+
+rabbitmq_config: RabbitMQConfig = {
+    "host": os.getenv("RABBITMQ_HOST", "rabbitmq"),
+    "port": int(os.getenv("RABBITMQ_PORT", "5671")),
+    "username": os.getenv("RABBITMQ_USER", "guest"),
+    "password": os.getenv("RABBITMQ_PASS", "guest"),
+    "use_tls": True,
+    "ca_cert": "/etc/rabbitmq/ssl/ca_cert.pem",
+    "client_cert": "/etc/rabbitmq/ssl/client_cert.pem",
+    "client_key": "/etc/rabbitmq/ssl/client_key.pem",
+    "prefetch_count": 10,
+}
+
+# Publicador global del microservicio
+event_publisher = RabbitMQPublisher(
+    queue="order_queue",
+    rabbitmq_config=rabbitmq_config,
+)
 
 # ------------------------------------------------------------------------------
 # Router definition
@@ -131,16 +148,18 @@ async def create_order(
 
         # --- Publicar evento a RabbitMQ usando EventPublisher ---
         event_publisher.publish(
-            "machine.request_piece",  # routing key
-            {                 # message body
+            message={ 
+                "event": "machine.request_piece",
                 "order_id": db_order.id,
                 "client_id": db_order.client_id,
                 "piece_amount": db_order.number_of_pieces,
                 "description": db_order.description,
                 "status": db_order.status,
-                "created_by": user_id,  
-            }
+                "created_by": user_id,
+            },
+        routing_key="machine.request_piece",  
         )
+
 
         logger.info(f"Published 'machine.request_piece' event for order {db_order.id} by {user_email}")
         return db_order

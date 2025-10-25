@@ -7,7 +7,9 @@ COPY Chassis/dist/microservice_chassis-0.3.0-py3-none-any.whl ./Chassis/dist/
 
 # Copy requirements and install globally
 COPY Order/order_app/requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
+
+RUN apt-get update && apt-get install -y git && \
+    pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
 # Create non-root user

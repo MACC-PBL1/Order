@@ -13,4 +13,5 @@ aio-pika
 PyJWT~=2.9              # Creación/validación de JWT
 cryptography>=43.0.0
 
-./Chassis/dist/microservice_chassis-0.3.0-py3-none-any.whl
+#./Chassis/dist/microservice_chassis-0.3.0-py3-none-any.whl
+chassis @ git+https://github.com/monolith2microservice/Chassis.git

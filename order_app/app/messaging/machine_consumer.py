@@ -2,8 +2,8 @@
 """Consumer that listens to Machine events and updates the Order database."""
 import logging
 from app.sql import crud, database, models
-from microservice_chassis.events import EventSubscriber
-from microservice_chassis.config import settings
+#from microservice_chassis.events import EventSubscriber
+#from microservice_chassis.config import settings
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 from . import models, schemas
 from datetime import datetime, timezone
 logger = logging.getLogger(__name__)
-from microservice_chassis.errors import raise_and_log_error
+#from microservice_chassis.errors import raise_and_log_error
 
 # ================================================================================================
 # ORDER CRUD OPERATIONS
@@ -97,18 +97,30 @@ async def update_order_status(db: AsyncSession, order_id: int, status: str):
         logger.warning("Order id=%s not found for update", order_id)
     return db_order
 
-async def update_piece_status(db, piece_id: int, new_status: str):
+
+
+async def update_piece_status(db: AsyncSession, piece_id: int, new_status: str):
     """Update the status (and manufacturing date) of a piece."""
-    result = await db.execute(
-    select(models.Piece).where(models.Piece.id == piece_id))
-    piece = result.unique().scalar_one_or_none()
+    try:
+        result = await db.execute(
+            select(models.Piece).where(models.Piece.id == piece_id)
+        )
+        piece = result.scalar_one_or_none()
 
-    if not piece:
-        raise_and_log_error(404, f"Piece {piece_id} not found")
+        if not piece:
+            logger.error(f" Piece {piece_id} not found.")
+            raise ValueError(f"Piece {piece_id} not found")
 
-    piece.status = new_status
-    piece.manufacturing_date = datetime.now(timezone.utc)
+        piece.status = new_status
+        piece.manufacturing_date = datetime.now(timezone.utc)
 
-    await db.commit()
-    await db.refresh(piece)
-    return piece
+        await db.commit()
+        await db.refresh(piece)
+
+        logger.info(f" Updated piece {piece_id} to status '{new_status}'.")
+        return piece
+
+    except Exception as e:
+        logger.error(f"Error updating piece {piece_id} status: {e}", exc_info=True)
+        await db.rollback()
+        raise
