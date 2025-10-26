@@ -1,9 +1,14 @@
-from ..messaging import PUBLIC_KEY
+from ..messaging import (
+    PUBLIC_KEY,
+    PUBLISHING_QUEUES,
+    RABBITMQ_CONFIG,
+)
 from ..sql import (
     create_order,
     Message,
     OrderSchema,
 )
+from chassis.messaging import RabbitMQPublisher
 from chassis.routers import raise_and_log_error
 from chassis.sql import get_db
 from fastapi import (
@@ -16,10 +21,17 @@ from fastapi.security import (
     HTTPBearer
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from typing import (
+    Dict,
+    Optional
+)
 import jwt
 import logging
 
+
+PIECE_PRICE: Dict[str, float] = {
+    "pieza_1": 4.75
+}
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +106,17 @@ async def create_order_endpoint(
     assert (client_id := token_data.get("sub")) is not None, f"'sub' field should exist in the JWT."
     client_id = int(client_id)
     db_order = create_order(db, client_id, piece_amount)
+
+    with RabbitMQPublisher(
+        queue=PUBLISHING_QUEUES["payment_request"],
+        rabbitmq_config=RABBITMQ_CONFIG,
+    ) as publisher:
+        publisher.publish({
+            "client_id": client_id,
+            "order_id": db_order.id,
+            "amount": piece_amount * PIECE_PRICE["pieza_1"]
+        })
+
     return OrderSchema(
         id=db_order.id,
         piece_amount=db_order.piece_amount,
