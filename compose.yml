@@ -1,13 +1,33 @@
 services:
-  order_app:
-    build: order_app
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWD:-guest}
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+  order:
+    build: .
     ports:
       - '13000:8000'
       - '13443:8443'
     volumes:
-      #- './fastapi_app:/home/pyuser/code'
-      - './db_volume:/volume'
+      - order-db:/database
     environment:
       PYTHONUNBUFFERED: 1
       SQLALCHEMY_DATABASE_URL: ${SQLALCHEMY_SQLITE_DATABASE_URI}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
     restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+volumes:
+  order-db:
