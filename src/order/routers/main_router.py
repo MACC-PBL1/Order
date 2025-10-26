@@ -9,23 +9,15 @@ from ..sql import (
     OrderSchema,
 )
 from chassis.messaging import RabbitMQPublisher
-from chassis.routers import raise_and_log_error
+from chassis.security import create_jwt_verifier
 from chassis.sql import get_db
 from fastapi import (
     APIRouter, 
     Depends, 
     status
 )
-from fastapi.security import (
-    HTTPAuthorizationCredentials, 
-    HTTPBearer
-)
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import (
-    Dict,
-    Optional
-)
-import jwt
+from typing import Dict
 import logging
 
 
@@ -36,30 +28,6 @@ PIECE_PRICE: Dict[str, float] = {
 logger = logging.getLogger(__name__)
 
 Router = APIRouter(prefix="/order", tags=["Order"])
-Bearer = HTTPBearer()
-
-def create_jwt_verifier(public_key: Optional[str], algorithm: str = "RS256"):
-    """
-    Factory function to create a JWT verifier with a specific public key.
-    """
-    def verify_token(credentials: HTTPAuthorizationCredentials = Depends(Bearer)):
-        try:
-            assert PUBLIC_KEY is not None, "'PUBLIC_KEY' is None"
-            payload = jwt.decode(
-                credentials.credentials,
-                public_key,
-                algorithms=[algorithm]
-            )
-            return payload
-        except jwt.InvalidTokenError:
-            raise_and_log_error(logger, status.HTTP_401_UNAUTHORIZED, "Invalid token")
-        except Exception as e:
-            raise_and_log_error(logger, status.HTTP_500_INTERNAL_SERVER_ERROR, f"Internal error: {e}")
-    
-    return verify_token
-
-# Create the verifier with your public key
-verify_token = create_jwt_verifier(PUBLIC_KEY)
 
 # ------------------------------------------------------------------------------
 # Health check
@@ -78,7 +46,9 @@ async def health_check():
     "/health/auth",
     summary="Health check endpoint (JWT protected)",
 )
-async def health_check_auth(token_data: dict = Depends(verify_token)):
+async def health_check_auth(
+    token_data: dict = Depends(create_jwt_verifier(PUBLIC_KEY, logger))
+):
     user_id = token_data.get("sub")
     user_email = token_data.get("email")
     user_role = token_data.get("role")
@@ -100,7 +70,7 @@ async def health_check_auth(token_data: dict = Depends(verify_token)):
 )
 async def create_order_endpoint(
     piece_amount: int,
-    token_data: dict = Depends(verify_token),
+    token_data: dict = Depends(create_jwt_verifier(PUBLIC_KEY, logger)),
     db: AsyncSession = Depends(get_db),
 ):
     assert (client_id := token_data.get("sub")) is not None, f"'sub' field should exist in the JWT."
