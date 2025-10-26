@@ -30,7 +30,7 @@ LISTENING_QUEUES: Dict[LiteralString, LiteralString] = {
     "payment_confirmation": "payment.confirmation",
     "piece_confirmation": "machine.confirmation_piece",
     "order_status_update": "order.update_status",
-    "public_key": "client.public_key",
+    "public_key": "client.public_key.order",
 }
 
 # JWT Public Key #######################################################################
