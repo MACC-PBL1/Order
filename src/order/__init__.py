@@ -14,15 +14,12 @@ from hypercorn.asyncio import serve
 from hypercorn.config import Config
 from threading import Thread
 import asyncio
-import logging
+import logging.config
 import os
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-)
-logger = logging.getLogger("machine-service")
+logging.config.fileConfig(os.path.join(os.path.dirname(__file__), "logging.ini"))
+logger = logging.getLogger(__name__)
 
 # App Lifespan #####################################################################################
 @asynccontextmanager
