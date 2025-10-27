@@ -75,7 +75,7 @@ async def create_order_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     logger.debug(
-        "POST '/order/create_order' endpoint called.\n"
+        "POST '/order/create_order' endpoint called:\n"
         "\tParams:\n"
         f"\t\t- 'piece_amount': {piece_amount}"
     )
