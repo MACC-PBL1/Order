@@ -34,4 +34,4 @@ LISTENING_QUEUES: Dict[LiteralString, LiteralString] = {
 }
 
 # JWT Public Key #######################################################################
-PUBLIC_KEY: Optional[str] = None
+PUBLIC_KEY: Dict[str, Optional[str]] = {"key": None}
