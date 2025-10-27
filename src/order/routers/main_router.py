@@ -93,7 +93,20 @@ async def create_order_endpoint(
             "amount": piece_amount * PIECE_PRICE["pieza_1"]
         }
         publisher.publish(data)
-        logger.info(f"COMMAND: Payment request --> {data}")
+        logger.info(f"EVENT: Payment request --> {data}")
+
+    with RabbitMQPublisher(
+        queue="events.order",
+        rabbitmq_config=RABBITMQ_CONFIG,
+        exchange="events.exchange",
+        exchange_type="topic",
+        routing_key="events.order",
+    ) as publisher:
+            publisher.publish({
+                "service_name": "order",
+                "event_type": "Listen",
+                "message": f"EVENT: Payment request --> {data}"
+            })
 
     return OrderSchema(
         id=db_order.id,

@@ -25,6 +25,19 @@ logger = logging.getLogger(__name__)
 async def payment_confirmation(message: MessageType) -> None:
     logger.info(f"EVENT: Payment confirmation --> Message: {message}")
 
+    with RabbitMQPublisher(
+        queue="events.order",
+        rabbitmq_config=RABBITMQ_CONFIG,
+        exchange="events.exchange",
+        exchange_type="topic",
+        routing_key="events.order",
+    ) as publisher:
+            publisher.publish({
+                "service_name": "order",
+                "event_type": "Listen",
+                "message": f"EVENT: Payment confirmation --> Message: {message}"
+            })
+
     assert (client_id := message.get("client_id")) is not None, "'client_id' field should be present."
     assert (order_id := message.get("order_id")) is not None, "'order_id' field should be present."
     assert (status := message.get("status")) is not None, "'status' field should be present."
@@ -52,7 +65,20 @@ async def payment_confirmation(message: MessageType) -> None:
             "amount": db_order.piece_amount,
         }
         publisher.publish(data)
-        logger.info(f"COMMAND: Request piece --> {data}")
+        logger.info(f"EVENT: Request piece --> {data}")
+
+    with RabbitMQPublisher(
+        queue="events.order",
+        rabbitmq_config=RABBITMQ_CONFIG,
+        exchange="events.exchange",
+        exchange_type="topic",
+        routing_key="events.order",
+    ) as publisher:
+            publisher.publish({
+                "service_name": "order",
+                "event_type": "Publish",
+                "message": f"EVENT: Request piece --> {data}"
+            })
 
     with RabbitMQPublisher(
         queue=PUBLISHING_QUEUES["delivery_create"],
@@ -63,11 +89,36 @@ async def payment_confirmation(message: MessageType) -> None:
             "client_id": client_id,
         }
         publisher.publish(data)
-        logger.info(f"COMMAND: Create delivery --> {data}")
+        logger.info(f"EVENT: Create delivery --> {data}")
+
+    with RabbitMQPublisher(
+        queue="events.order",
+        rabbitmq_config=RABBITMQ_CONFIG,
+        exchange="events.exchange",
+        exchange_type="topic",
+        routing_key="events.order",
+    ) as publisher:
+            publisher.publish({
+                "service_name": "order",
+                "event_type": "Publish",
+                "message": f"EVENT: Create delivery --> {data}"
+            })
 
 @register_queue_handler(LISTENING_QUEUES["piece_confirmation"])
 async def piece_confirmation(message: MessageType) -> None:
     logger.info(f"EVENT: Piece confirmation --> Message: {message}")
+    with RabbitMQPublisher(
+        queue="events.order",
+        rabbitmq_config=RABBITMQ_CONFIG,
+        exchange="events.exchange",
+        exchange_type="topic",
+        routing_key="events.order",
+    ) as publisher:
+            publisher.publish({
+                "service_name": "order",
+                "event_type": "Listen",
+                "message": f"EVENT: Piece confirmation --> Message: {message}"
+            })
 
     assert (order_id := message.get("order_id")) is not None, "'order_id' field should be present."
     assert (piece_id := message.get("piece_id")) is not None, "'piece_id' field should be present."
@@ -91,11 +142,37 @@ async def piece_confirmation(message: MessageType) -> None:
             "status": "packaged",
         }
         publisher.publish(data)
-        logger.info(f"COMMAND: Update delivery --> {data}")
+        logger.info(f"EVENT: Update delivery --> {data}")
+
+    with RabbitMQPublisher(
+        queue="events.order",
+        rabbitmq_config=RABBITMQ_CONFIG,
+        exchange="events.exchange",
+        exchange_type="topic",
+        routing_key="events.order",
+    ) as publisher:
+            publisher.publish({
+                "service_name": "order",
+                "event_type": "Publish",
+                "message": f"EVENT: Update delivery --> {data}"
+            })
 
 @register_queue_handler(LISTENING_QUEUES["order_status_update"])
 async def order_status_update(message: MessageType) -> None:
     logger.info(f"EVENT: Update order status --> Message: {message}")
+
+    with RabbitMQPublisher(
+        queue="events.order",
+        rabbitmq_config=RABBITMQ_CONFIG,
+        exchange="events.exchange",
+        exchange_type="topic",
+        routing_key="events.order",
+    ) as publisher:
+            publisher.publish({
+                "service_name": "order",
+                "event_type": "Listen",
+                "message": f"EVENT: Update order status --> Message: {message}"
+            })
 
     assert (order_id := message.get("order_id")) is not None, "'order_id' field should be present."
     assert (status := message.get("status")) is not None, "'status' field should be present."
@@ -113,6 +190,19 @@ async def order_status_update(message: MessageType) -> None:
 )
 def public_key(message: MessageType) -> None:
     logging.info(f"EVENT: Public key updated --> Message: {message}")
+
+    with RabbitMQPublisher(
+        queue="events.order",
+        rabbitmq_config=RABBITMQ_CONFIG,
+        exchange="events.exchange",
+        exchange_type="topic",
+        routing_key="events.order",
+    ) as publisher:
+            publisher.publish({
+                "service_name": "order",
+                "event_type": "Listen",
+                "message": f"EVENT: Public key updated --> Message: {message}"
+            })
 
     global PUBLIC_KEY
     assert (public_key := message.get("public_key")) is not None, "'public_key' field should be present."
