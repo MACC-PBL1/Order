@@ -49,6 +49,7 @@ async def health_check():
 async def health_check_auth(
     token_data: dict = Depends(create_jwt_verifier(lambda: PUBLIC_KEY["key"], logger))
 ):
+    logger.debug("GET '/order/health/auth' called.")
     user_id = token_data.get("sub")
     user_email = token_data.get("email")
     user_role = token_data.get("role")
@@ -73,19 +74,26 @@ async def create_order_endpoint(
     token_data: dict = Depends(create_jwt_verifier(lambda: PUBLIC_KEY["key"], logger)),
     db: AsyncSession = Depends(get_db),
 ):
+    logger.debug(
+        "POST '/order/create_order' endpoint called.\n",
+        "\tParams:\n",
+        f"\t\t- 'piece_amount': {piece_amount}"
+    )
     assert (client_id := token_data.get("sub")) is not None, f"'sub' field should exist in the JWT."
     client_id = int(client_id)
-    db_order = create_order(db, client_id, piece_amount)
+    db_order = await create_order(db, client_id, piece_amount)
 
     with RabbitMQPublisher(
         queue=PUBLISHING_QUEUES["payment_request"],
         rabbitmq_config=RABBITMQ_CONFIG,
     ) as publisher:
-        publisher.publish({
+        data = {
             "client_id": client_id,
             "order_id": db_order.id,
             "amount": piece_amount * PIECE_PRICE["pieza_1"]
-        })
+        }
+        publisher.publish(data)
+        logger.info(f"COMMAND: Payment request --> {data}")
 
     return OrderSchema(
         id=db_order.id,

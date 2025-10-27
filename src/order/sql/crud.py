@@ -2,7 +2,7 @@ from .models import Order
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
-def create_order(
+async def create_order(
     db: AsyncSession, 
     client_id: int, 
     piece_amount: int,
@@ -12,6 +12,8 @@ def create_order(
         client_id=client_id,
     )
     db.add(db_order)
+    await db.flush()
+    await db.refresh(db_order)
     return db_order
 
 async def get_order(

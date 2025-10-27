@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 
 @register_queue_handler(LISTENING_QUEUES["payment_confirmation"])
 async def payment_confirmation(message: MessageType) -> None:
+    logger.info(f"EVENT: Payment confirmation --> Message: {message}")
+
     assert (client_id := message.get("client_id")) is not None, "'client_id' field should be present."
     assert (order_id := message.get("order_id")) is not None, "'order_id' field should be present."
     assert (status := message.get("status")) is not None, "'status' field should be present."
@@ -45,22 +47,28 @@ async def payment_confirmation(message: MessageType) -> None:
         queue=PUBLISHING_QUEUES["piece_request"],
         rabbitmq_config=RABBITMQ_CONFIG
     ) as publisher:
-        publisher.publish({
+        data = {
             "order_id": order_id,
             "amount": db_order.piece_amount,
-        })
+        }
+        publisher.publish(data)
+        logger.info(f"COMMAND: Request piece --> {data}")
 
     with RabbitMQPublisher(
         queue=PUBLISHING_QUEUES["delivery_create"],
         rabbitmq_config=RABBITMQ_CONFIG
     ) as publisher:
-        publisher.publish({
+        data = {
             "order_id": order_id,
             "client_id": client_id,
-        })
+        }
+        publisher.publish(data)
+        logger.info(f"COMMAND: Create delivery --> {data}")
 
 @register_queue_handler(LISTENING_QUEUES["piece_confirmation"])
 async def piece_confirmation(message: MessageType) -> None:
+    logger.info(f"EVENT: Piece confirmation --> Message: {message}")
+
     assert (order_id := message.get("order_id")) is not None, "'order_id' field should be present."
     assert (piece_id := message.get("piece_id")) is not None, "'piece_id' field should be present."
 
@@ -75,16 +83,20 @@ async def piece_confirmation(message: MessageType) -> None:
         return
     
     with RabbitMQPublisher(
-        queue=PUBLISHING_QUEUES["delivery.update_status"],
+        queue=PUBLISHING_QUEUES["delivery_update"],
         rabbitmq_config=RABBITMQ_CONFIG
     ) as publisher:
-        publisher.publish({
+        data = {
             "order_id": order_id,
             "status": "packaged",
-        })
+        }
+        publisher.publish(data)
+        logger.info(f"COMMAND: Update delivery --> {data}")
 
 @register_queue_handler(LISTENING_QUEUES["order_status_update"])
 async def order_status_update(message: MessageType) -> None:
+    logger.info(f"EVENT: Order update --> Message: {message}")
+
     assert (order_id := message.get("order_id")) is not None, "'order_id' field should be present."
     assert (status := message.get("status")) is not None, "'status' field should be present."
 
@@ -100,7 +112,8 @@ async def order_status_update(message: MessageType) -> None:
     exchange_type="fanout"
 )
 def public_key(message: MessageType) -> None:
+    logging.info(f"EVENT: Public key updated --> Message: {message}")
+
     global PUBLIC_KEY
     assert (public_key := message.get("public_key")) is not None, "'public_key' field should be present."
     PUBLIC_KEY["key"] = str(public_key)
-    logging.info(f"Public key updated: {PUBLIC_KEY}")
