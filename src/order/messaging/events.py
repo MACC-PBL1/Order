@@ -95,7 +95,7 @@ async def piece_confirmation(message: MessageType) -> None:
 
 @register_queue_handler(LISTENING_QUEUES["order_status_update"])
 async def order_status_update(message: MessageType) -> None:
-    logger.info(f"EVENT: Order update --> Message: {message}")
+    logger.info(f"EVENT: Update order status --> Message: {message}")
 
     assert (order_id := message.get("order_id")) is not None, "'order_id' field should be present."
     assert (status := message.get("status")) is not None, "'status' field should be present."
