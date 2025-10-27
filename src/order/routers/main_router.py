@@ -75,8 +75,8 @@ async def create_order_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     logger.debug(
-        "POST '/order/create_order' endpoint called.\n",
-        "\tParams:\n",
+        "POST '/order/create_order' endpoint called.\n"
+        "\tParams:\n"
         f"\t\t- 'piece_amount': {piece_amount}"
     )
     assert (client_id := token_data.get("sub")) is not None, f"'sub' field should exist in the JWT."
