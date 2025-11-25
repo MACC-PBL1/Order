@@ -8,6 +8,7 @@ from chassis.sql import (
     Base, 
     Engine,
 )
+from chassis.consul import ConsulClient 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from hypercorn.asyncio import serve
@@ -43,6 +44,14 @@ async def lifespan(__app: FastAPI):
                 logger.error(
                     f"Could not start the RabbitMQ listeners: {e}"
                 )
+            logger.info("Registering service to Consul...")
+            try:
+                service_port = int(os.getenv("PORT", "8000"))
+                consul = ConsulClient(logger=logger)
+                consul.register_service(service_name="order-service", port=service_port, health_path="/order/health")
+                
+            except Exception as e:
+                logger.error(f"Failed to register with Consul: {e}")
         except Exception:
             logger.error(
                 "Could not create tables at startup",
