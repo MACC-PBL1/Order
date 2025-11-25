@@ -13,7 +13,7 @@ from app.routers.main_router import event_publisher
 from app.sql import models, database
 from app.messaging.machine_consumer import MachineEventConsumer
 from app.messaging.client_consumer import start_client_consumer
-
+from chassis.consul import ConsulClient 
 from chassis.messaging.publisher import RabbitMQPublisher
 from chassis.messaging.types import RabbitMQConfig
 
@@ -70,6 +70,14 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(" Error connecting RabbitMQPublisher: %s", str(e))
 
+        logger.info("Registering service to Consul...")
+        try:
+            service_port = int(os.getenv("PORT", "8000"))
+            consul = ConsulClient(logger=logger)
+            consul.register_service(service_name="order-service", port=service_port, health_path="/order/health")
+            
+        except Exception as e:
+            logger.error(f"Failed to register with Consul: {e}")
         # Iniciar listener de Machine en thread separado
         # try:
         #     logger.info("Starting Machine event listener...")
