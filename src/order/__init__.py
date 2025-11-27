@@ -22,6 +22,16 @@ import os
 logging.config.fileConfig(os.path.join(os.path.dirname(__file__), "logging.ini"))
 logger = logging.getLogger(__name__)
 
+from .messaging.global_vars import RABBITMQ_CONFIG
+
+from chassis.logging.rabbitmq_logging import setup_rabbitmq_logging
+setup_rabbitmq_logging("order", RABBITMQ_CONFIG, level=logging.INFO)
+
+
+from .messaging import LISTENING_QUEUES
+from .routers import Router
+
+
 # App Lifespan #####################################################################################
 @asynccontextmanager
 async def lifespan(__app: FastAPI):
