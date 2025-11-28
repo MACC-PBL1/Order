@@ -18,7 +18,7 @@ from chassis.sql import (
     SessionLocal
 )
 import logging
-from chassis.consul_client import ConsulClient 
+from chassis.consul import ConsulClient 
 import requests
 
 logger = logging.getLogger(__name__)
