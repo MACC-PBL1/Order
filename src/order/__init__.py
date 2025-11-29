@@ -18,13 +18,10 @@ import asyncio
 import logging.config
 import os
 
+from chassis.logging.rabbitmq_logging import setup_rabbitmq_logging
 # Configure logging
 logging.config.fileConfig(os.path.join(os.path.dirname(__file__), "logging.ini"))
-logger = logging.getLogger(__name__)
-
-from .messaging.global_vars import RABBITMQ_CONFIG
-
-from chassis.logging.rabbitmq_logging import setup_rabbitmq_logging
+logger = logging.getLogger("order")
 setup_rabbitmq_logging("order", RABBITMQ_CONFIG, level=logging.INFO)
 
 

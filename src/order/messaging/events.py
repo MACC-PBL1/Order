@@ -15,8 +15,7 @@ from chassis.messaging import (
     register_queue_handler,
 )
 from chassis.sql import SessionLocal
-from chassis.consul import ConsulClient
-from chassis.logging.rabbitmq_logging import log_with_context         
+from chassis.consul import ConsulClient      
 import requests
 import logging
 
@@ -53,13 +52,11 @@ async def payment_confirmation(message: MessageType) -> None:
         async with SessionLocal() as db:
             await update_order_status(db, order_id, Order.STATUS_CANCELLED)
 
-        log_with_context(                                 
-            logger,
-            logging.WARNING,
+        logger.warning(
             f"Client '{client_id}' had a payment error '{status}'",
-            client_id=client_id,
-            order_id=order_id
+            extra={"client_id": client_id, "order_id": order_id}
         )
+
         return
 
     # Payment OK → update order
@@ -78,12 +75,11 @@ async def payment_confirmation(message: MessageType) -> None:
     ) as publisher:
         publisher.publish(data)
 
-    log_with_context(                                      
-        logger,
-        logging.INFO,
+    logger.info(
         f"EVENT: Request piece --> {data}",
-        order_id=order_id
+        extra={"order_id": order_id}
     )
+
 
     with RabbitMQPublisher(
         queue="events.order",
@@ -110,13 +106,11 @@ async def payment_confirmation(message: MessageType) -> None:
     ) as publisher:
         publisher.publish(delivery_data)
 
-    log_with_context(                                      
-        logger,
-        logging.INFO,
+    logger.info(
         f"EVENT: Create delivery --> {delivery_data}",
-        client_id=client_id,
-        order_id=order_id
+        extra={"client_id": client_id, "order_id": order_id}
     )
+
 
     with RabbitMQPublisher(
         queue="events.order",
@@ -170,12 +164,11 @@ async def piece_confirmation(message: MessageType) -> None:
     ) as publisher:
         publisher.publish(data)
 
-    log_with_context(                                      
-        logger,
-        logging.INFO,
+    logger.info(
         f"EVENT: Update delivery --> {data}",
-        order_id=order_id
+        extra={"order_id": order_id}
     )
+
 
     with RabbitMQPublisher(
         queue="events.order",
@@ -217,12 +210,11 @@ async def order_status_update(message: MessageType) -> None:
     async with SessionLocal() as db:
         await update_order_status(db, order_id, Order.STATUS_CREATED)
 
-    log_with_context(                                      
-        logger,
-        logging.INFO,
+    logger.info(
         f"Order {order_id} status updated to CREATED",
-        order_id=order_id
+        extra={"order_id": order_id}
     )
+
 
 
 @register_queue_handler(
@@ -239,13 +231,16 @@ def public_key(message: MessageType) -> None:
         f"'public_key' value is '{message['public_key']}', expected 'AVAILABLE'"
     )
 
-    consul = ConsulClient(logger)
-    auth_base_url = consul.get_service_url("auth-service")
-    if not auth_base_url:
-        logger.error("The auth service couldn't be found")
-        return
+    # consul = ConsulClient(logger)
+    # auth_base_url = consul.get_service_url("auth-service")
+    # if not auth_base_url:
+    #     logger.error("The auth service couldn't be found")
+    #     return
 
-    target_url = f"{auth_base_url}/auth-service/key"
+    # target_url = f"{auth_base_url}/auth-service/key"
+
+    auth_base_url = "http://auth:8000"
+    target_url = f"{auth_base_url}/auth/key"
 
     try:
         response = requests.get(target_url, timeout=5)

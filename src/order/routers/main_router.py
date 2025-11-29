@@ -18,8 +18,7 @@ from fastapi import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict
-import logging
-from chassis.logging.rabbitmq_logging import log_with_context    
+import logging 
 
 
 PIECE_PRICE: Dict[str, float] = {
@@ -58,13 +57,11 @@ async def health_check_auth(
 
     logger.info(f"Valid JWT → user_id={user_id}, email={user_email}, role={user_role}")
 
-    # log enriched (audit log)
-    log_with_context(
-        logger,
-        logging.INFO,
+    logger.info(
         "Authenticated health check",
-        client_id=user_id
+        extra={"client_id": user_id}
     )
+
 
     return {
         "detail": f"Order service is running. Authenticated as {user_email} (id={user_id}, role={user_role})"
@@ -89,12 +86,9 @@ async def create_order_endpoint(
 
     client_id = int(token_data["sub"])
 
-    # Audit log
-    log_with_context(
-        logger,
-        logging.DEBUG,
+    logger.debug(
         "Create order request received",
-        client_id=client_id
+        extra={"client_id": client_id}
     )
 
     # Create order inside DB
@@ -115,13 +109,11 @@ async def create_order_endpoint(
     ) as publisher:
         publisher.publish(payment_data)
 
-    log_with_context(
-        logger,
-        logging.INFO,
+    logger.info(
         "Payment request sent",
-        client_id=client_id,
-        order_id=db_order.id
+        extra={"client_id": client_id, "order_id": db_order.id}
     )
+
 
     # --------------------
     # EVENT: order.created (Topic)
