@@ -131,7 +131,11 @@ async def create_order_endpoint(
             "message": f"Order created → {payment_data}",
         })
 
-    logger.info(f"Event published: order.created (order_id={db_order.id})")
+    logger.info(
+        f"Event published: order.created (order_id={db_order.id})",
+        extra={"client_id": db_order.client_id, "order_id": db_order.id}
+    )
+
 
     return OrderSchema(
         id=db_order.id,
