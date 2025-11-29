@@ -1,4 +1,5 @@
 from .models import Order
+from chassis.sql import delete_element_by_id
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
@@ -6,10 +7,16 @@ async def create_order(
     db: AsyncSession, 
     client_id: int, 
     piece_amount: int,
+    city: str,
+    street: str,
+    zip: str,
 ) -> Order:
     db_order = Order(
         piece_amount=piece_amount,
         client_id=client_id,
+        city=city,
+        street=street,
+        zip=zip,
     )
     db.add(db_order)
     await db.flush()

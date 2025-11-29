@@ -20,4 +20,7 @@ class Order(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     piece_amount: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=STATUS_CREATED)
+    city: Mapped[str] = mapped_column(String, nullable=False)
+    street: Mapped[str] = mapped_column(String, nullable=False)
+    zip: Mapped[str] = mapped_column(String, nullable=False)
     client_id: Mapped[int] = mapped_column(Integer, nullable=False)

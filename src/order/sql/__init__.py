@@ -6,7 +6,8 @@ from .crud import (
 from .models import Order
 from .schemas import (
     Message,
-    OrderSchema
+    OrderCreationRequest,
+    OrderCreationResponse,
 )
 from typing import (
     List,
@@ -18,6 +19,7 @@ __all__: List[LiteralString] = [
     "get_order",
     "Message",
     "Order",
-    "OrderSchema",
+    "OrderCreationRequest",
+    "OrderCreationResponse",
     "update_order_status",
 ]

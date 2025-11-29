@@ -3,11 +3,19 @@ from ..messaging import (
     PUBLISHING_QUEUES,
     RABBITMQ_CONFIG,
 )
+from ..saga import (
+    StateContext,
+    Saga,
+)
 from ..sql import (
     create_order,
     Message,
-    OrderSchema,
+    Order,
+    OrderCreationRequest,
+    OrderCreationResponse,
+    update_order_status,
 )
+from chassis.routers import raise_and_log_error
 from chassis.messaging import RabbitMQPublisher
 from chassis.security import create_jwt_verifier
 from chassis.sql import get_db
@@ -72,17 +80,17 @@ async def health_check_auth(
 # Create Order
 # ----------------------------------------------------------------------
 @Router.post(
-    "/create_order",
-    response_model=OrderSchema,
+    "/create",
+    response_model=OrderCreationResponse,
     summary="Create a new order",
     status_code=status.HTTP_201_CREATED,
 )
 async def create_order_endpoint(
-    piece_amount: int,
+    order_data: OrderCreationRequest,
     token_data: dict = Depends(create_jwt_verifier(lambda: PUBLIC_KEY["key"], logger)),
     db: AsyncSession = Depends(get_db),
 ):
-    logger.debug(f"POST '/order/create_order' called (piece_amount={piece_amount})")
+    logger.debug(f"POST '/order/create' called (piece_amount={order_data.piece_count})")
 
     client_id = int(token_data["sub"])
 
@@ -91,53 +99,62 @@ async def create_order_endpoint(
         extra={"client_id": client_id}
     )
 
-    # Create order inside DB
-    db_order = await create_order(db, client_id, piece_amount)
-
-    # --------------------
-    # QUEUE: Payment Request
-    # --------------------
-    payment_data = {
-        "client_id": client_id,
-        "order_id": db_order.id,
-        "amount": piece_amount * PIECE_PRICE["pieza_1"]
-    }
-
-    with RabbitMQPublisher(
-        queue=PUBLISHING_QUEUES["payment_request"],
-        rabbitmq_config=RABBITMQ_CONFIG,
-    ) as publisher:
-        publisher.publish(payment_data)
-
-    logger.info(
-        "Payment request sent",
-        extra={"client_id": client_id, "order_id": db_order.id}
+    db_order = await create_order(
+        db=db, 
+        client_id=client_id, 
+        piece_amount=order_data.piece_count,
+        city=order_data.city,
+        street=order_data.street,
+        zip=order_data.zip
     )
 
+    ctx = StateContext(
+        order_id=db_order.id,
+        client_id=db_order.client_id,
+        total_amount=db_order.piece_amount * PIECE_PRICE["pieza_1"],
+        zipcode=db_order.zip
+    )
+    saga = Saga(ctx)
 
-    # --------------------
-    # EVENT: order.created (Topic)
-    # --------------------
+    if saga.process() == False:
+        await update_order_status(
+            db=db,
+            order_id=db_order.id,
+            status=Order.STATUS_CANCELLED,
+        )
+        logger.error(
+            f"Failed to process payment for (client_id={db_order.client_id}, order_id={db_order.id})"
+        )
+        raise_and_log_error(
+            logger=logger, 
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            message=f"Saga failed on state {saga.get_state()}"
+        )
+
+    # Ask for pieces
     with RabbitMQPublisher(
-        queue="",
-        exchange="events.exchange",
-        exchange_type="topic",
-        routing_key="order.created",
-        rabbitmq_config=RABBITMQ_CONFIG,
+        queue=PUBLISHING_QUEUES["piece_request"],
+        rabbitmq_config=RABBITMQ_CONFIG
     ) as publisher:
         publisher.publish({
-            "service_name": "order",
-            "event_type": "order.created",
-            "message": f"Order created → {payment_data}",
+            "order_id": db_order.id,
+            "amount": db_order.piece_amount,
         })
 
-    logger.info(
-        f"Event published: order.created (order_id={db_order.id})",
-        extra={"client_id": db_order.client_id, "order_id": db_order.id}
-    )
+    # Create delivery
+    with RabbitMQPublisher(
+        queue=PUBLISHING_QUEUES["delivery_create"],
+        rabbitmq_config=RABBITMQ_CONFIG
+    ) as publisher:
+        publisher.publish({
+            "order_id": db_order.id,
+            "city": db_order.city,
+            "street": db_order.street,
+            "zip": db_order.zip,
+            "client_id": db_order.client_id,
+        })
 
-
-    return OrderSchema(
+    return OrderCreationResponse(
         id=db_order.id,
         piece_amount=db_order.piece_amount,
         status=db_order.status,
