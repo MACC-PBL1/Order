@@ -232,12 +232,12 @@ def public_key(message: MessageType) -> None:
     )
 
     consul = ConsulClient(logger)
-    auth_base_url = consul.get_service_url("auth-service")
+    auth_base_url = consul.get_service_url("auth")
     if not auth_base_url:
         logger.error("The auth service couldn't be found")
         return
 
-    target_url = f"{auth_base_url}/auth-service/key"
+    target_url = f"{auth_base_url}/auth/key"
 
     # auth_base_url = "http://auth:8000"
     # target_url = f"{auth_base_url}/auth/key"
