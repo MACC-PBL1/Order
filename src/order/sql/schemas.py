@@ -1,7 +1,8 @@
 from pydantic import BaseModel
 
 class Message(BaseModel):
-    detail: str = "Operation successful"
+    detail: str
+    system_metrics: dict
 
 class OrderCreationRequest(BaseModel):
     city: str
