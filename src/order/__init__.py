@@ -21,8 +21,8 @@ import os
 from chassis.logging.rabbitmq_logging import setup_rabbitmq_logging
 # Configure logging
 logging.config.fileConfig(os.path.join(os.path.dirname(__file__), "logging.ini"))
-logger = logging.getLogger("order")
-setup_rabbitmq_logging("order", RABBITMQ_CONFIG, level=logging.INFO)
+logger = logging.getLogger(__name__)
+# setup_rabbitmq_logging("order", RABBITMQ_CONFIG, level=logging.INFO)
 
 
 from .messaging import LISTENING_QUEUES

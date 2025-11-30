@@ -8,6 +8,9 @@ from chassis.messaging import (
     register_queue_handler,
     start_rabbitmq_listener,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CheckBalanceState(State):
     """Check if customer has sufficient credit"""
@@ -36,9 +39,20 @@ class CheckBalanceState(State):
             routing_key=response_routing_key,
         )
         def payment_response(message: MessageType) -> None:
-            assert (client_id := message.get("client_id")) is not None, "'client_id' field should be present."
+            nonlocal payment_ok
             assert (status := message.get("status")) is not None, "'status' field should be present."
-            payment_ok = (status == "OK")
+            if (payment_ok := (status == "OK")):
+                logger.info(
+                    "[EVENT:PAYMENT_RESERVE:SUCCESS] - Payment reserved successfully: "
+                    f"order_id={self._context.order_id}"
+                )
+            else:
+                logger.info(
+                    "[EVENT:PAYMENT_RESERVE:FAILED] - Payment reserve failed: "
+                    f"order_id={self._context.order_id}, "
+                    f"status='{status}'"
+                )
+
 
         with RabbitMQPublisher(
             queue="",
@@ -54,6 +68,12 @@ class CheckBalanceState(State):
                 "response_exchange_type": response_exchange_type,
                 "response_routing_key": response_routing_key
             })
+            logger.info(
+                "[CMD:PAYMENT_RESERVE:SENT] - Sent reserve command: "
+                f"order_id={self._context.order_id}, "
+                f"client_id={self._context.client_id}, "
+                f"amount={self._context.total_amount}"
+            )
 
         start_rabbitmq_listener(
             queue=response_queue,

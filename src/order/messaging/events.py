@@ -6,7 +6,6 @@ from .global_vars import (
 )
 from ..sql import (
     get_order,
-    Order,
     update_order_status,
 )
 from chassis.messaging import (
@@ -23,30 +22,20 @@ logger = logging.getLogger(__name__)
 
 @register_queue_handler(LISTENING_QUEUES["piece_confirmation"])
 async def piece_confirmation(message: MessageType) -> None:
-
-    logger.info(f"EVENT: Piece confirmation --> Message: {message}")
-
-    with RabbitMQPublisher(
-        queue="events.order",
-        rabbitmq_config=RABBITMQ_CONFIG,
-        exchange="events.exchange",
-        exchange_type="topic",
-        routing_key="events.order",
-    ) as publisher:
-        publisher.publish({
-            "service_name": "order",
-            "event_type": "Listen",
-            "message": f"EVENT: Piece confirmation --> Message: {message}"
-        })
-
-    assert (order_id := message.get("order_id"))
-    assert (piece_id := message.get("piece_id"))
+    assert (order_id := message.get("order_id")) is not None, "'order_id' should exist."
+    assert (piece_id := message.get("piece_id")) is not None, "'piece_id' should exist."
 
     order_id = int(order_id)
     piece_id = int(piece_id)
 
     async with SessionLocal() as db:
         assert (db_order := await get_order(db, order_id)) is not None, "'db_order' should exist."
+
+    logger.info(
+        "[EVENT:PIECE:CREATED] - Ordered piece created: "
+        f"order_id={order_id}, "
+        f"piece_id={piece_id} "
+    )
 
     if piece_id != (db_order.piece_amount - 1):
         return
@@ -62,35 +51,25 @@ async def piece_confirmation(message: MessageType) -> None:
 
 @register_queue_handler(LISTENING_QUEUES["order_status_update"])
 async def order_status_update(message: MessageType) -> None:
-
-    logger.info(f"EVENT: Update order status --> Message: {message}")
-
-    with RabbitMQPublisher(
-        queue="events.order",
-        rabbitmq_config=RABBITMQ_CONFIG,
-        exchange="events.exchange",
-        exchange_type="topic",
-        routing_key="events.order",
-    ) as publisher:
-        publisher.publish({
-            "service_name": "order",
-            "event_type": "Listen",
-            "message": f"EVENT: Update order status --> Message: {message}"
-        })
-
-    assert (order_id := message.get("order_id"))
-    assert (status := message.get("status"))
+    assert (order_id := message.get("order_id")) is not None, "'order_id' should exist."
+    assert (status := message.get("status")) is not None, "'status' should exist."
 
     order_id = int(order_id)
+    status = str(status)
 
-    # TODO: BEGIRATU EA HAU ONDO DAGOEN!
     async with SessionLocal() as db:
-        await update_order_status(db, order_id, Order.STATUS_CREATED)
+        await update_order_status(
+            db=db, 
+            order_id=order_id, 
+            status=status,
+        )
 
     logger.info(
-        f"Order {order_id} status updated to CREATED",
-        extra={"order_id": order_id}
+        "[EVENT:STATUS_UPDATE:SUCCESS] - Order status updated: "
+        f"order_id={order_id}, "
+        f"status={status}"
     )
+
 
 @register_queue_handler(
     queue=LISTENING_QUEUES["public_key"],
@@ -116,4 +95,7 @@ def public_key(message: MessageType) -> None:
         "Auth response did not contain expected 'public_key' field."
     )
     PUBLIC_KEY["key"] = str(new_key)
-    logger.info(f"EVENT: Public key updated: {message}")
+    logger.info(
+        "[EVENT:PUBLIC_KEY:UPDATED] - Public key updated: "
+        f"key={PUBLIC_KEY["key"]}"
+    )

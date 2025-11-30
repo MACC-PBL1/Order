@@ -27,7 +27,6 @@ PUBLISHING_QUEUES: Dict[LiteralString, LiteralString] = {
     "delivery_update": "delivery.update_status",
 }
 LISTENING_QUEUES: Dict[LiteralString, LiteralString] = {
-    "payment_confirmation": "payment.confirmation",
     "piece_confirmation": "machine.confirmation_piece",
     "order_status_update": "order.update_status",
     "public_key": "client.public_key.order",

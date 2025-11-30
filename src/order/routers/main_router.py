@@ -33,7 +33,7 @@ PIECE_PRICE: Dict[str, float] = {
     "pieza_1": 4.75
 }
 
-logger = logging.getLogger("order")
+logger = logging.getLogger(__name__)
 
 Router = APIRouter(prefix="/order", tags=["Order"])
 

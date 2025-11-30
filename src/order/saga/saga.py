@@ -19,31 +19,35 @@ class Saga:
         self._state = self._state.on_event(event)
     
     def process(self) -> bool:
-        logger.info(f"Processing Order {self._context.order_id}")
+        logger.info(f"[LOG:SAGA] - Processing Order {self._context.order_id}")
         
         # Start the saga
+        logger.info(f"[LOG:SAGA] - State: {self.get_state()}")
         self._on_event(self._state)
         
         # Check credit
+        logger.info(f"[LOG:SAGA] - State: {self.get_state()}")
         self._on_event(self._state)
         
         # If cancelled, exit
         if isinstance(self._state, OrderCancelledState):
+            logger.warning("[LOG:SAGA] - Order cancelled, no funds.")
             return False
         
         # Check delivery
+        logger.info(f"[LOG:SAGA] - State: {self.get_state()}")
         self._on_event(self._state)
         
         if isinstance(self._state, ReleaseClientBalanceState):
+            logger.info(f"[LOG:SAGA] - Order cancelled, incorrect zip code")
             self._on_event(self._state)
             return False
         
         if isinstance(self._state, ProcessApprovedState):
-            logger.info("Order completed")
+            logger.info("[LOG:SAGA] - Order approved")
             return True
         
         return False
     
     def get_state(self) -> str:
-        """Get current state name"""
         return str(self._state)
