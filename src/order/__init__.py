@@ -2,6 +2,7 @@ from .global_vars import (
     LISTENING_QUEUES,
     RABBITMQ_CONFIG,
 )
+from .messaging import *
 from chassis.logging import (
     get_logger,
     setup_rabbitmq_logging,
