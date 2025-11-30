@@ -1,4 +1,4 @@
-from ..messaging import RABBITMQ_CONFIG
+from ..global_vars import RABBITMQ_CONFIG
 from .base_state import State
 from .order_cancelled_state import OrderCancelledState
 from chassis.messaging import RabbitMQPublisher

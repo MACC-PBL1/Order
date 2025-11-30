@@ -1,8 +1,11 @@
-from .messaging import (
+from .global_vars import (
     LISTENING_QUEUES,
     RABBITMQ_CONFIG,
 )
-from .routers import Router
+from chassis.logging import (
+    get_logger,
+    setup_rabbitmq_logging,
+)
 from chassis.messaging import start_rabbitmq_listener
 from chassis.sql import (
     Base, 
@@ -18,11 +21,14 @@ import asyncio
 import logging.config
 import os
 
-# Configure logging
+# Configure logging ################################################################################
 logging.config.fileConfig(os.path.join(os.path.dirname(__file__), "logging.ini"))
-logger = logging.getLogger(__name__)
+setup_rabbitmq_logging(
+    rabbitmq_config=RABBITMQ_CONFIG,
+    capture_dependencies=True,
+)
+logger = get_logger(__name__)
 
-from .messaging import LISTENING_QUEUES
 from .routers import Router
 
 

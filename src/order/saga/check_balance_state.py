@@ -1,4 +1,4 @@
-from ..messaging.global_vars import RABBITMQ_CONFIG
+from ..global_vars import RABBITMQ_CONFIG
 from .base_state import State
 from .check_delivery_state import CheckDeliveryState
 from .order_cancelled_state import OrderCancelledState

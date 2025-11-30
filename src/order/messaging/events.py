@@ -1,4 +1,4 @@
-from .global_vars import (
+from ..global_vars import (
     LISTENING_QUEUES,
     PUBLIC_KEY,
     PUBLISHING_QUEUES,

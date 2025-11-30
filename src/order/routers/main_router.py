@@ -1,4 +1,4 @@
-from ..messaging import (
+from ..global_vars import (
     PUBLIC_KEY,
     PUBLISHING_QUEUES,
     RABBITMQ_CONFIG,
