@@ -6,6 +6,7 @@ from ..messaging import (
 from ..saga import (
     StateContext,
     Saga,
+    SAGA_HISTORY,
 )
 from ..sql import (
     create_order,
@@ -28,10 +29,11 @@ from chassis.sql import get_db
 from fastapi import (
     APIRouter, 
     Depends, 
-    status
+    status,
+    Query
 )
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict
+from typing import Dict, List, Optional
 import logging 
 import socket
 
@@ -171,3 +173,37 @@ async def create_order_endpoint(
         status=db_order.status,
         client_id=db_order.client_id,
     )
+    
+# ------------------------------------------------------------------------------------
+# Saga history
+# ------------------------------------------------------------------------------------
+@Router.get(
+    "/saga/history",
+    summary="Get saga state history",
+    response_model=Dict[int, List[str]],
+)
+async def get_saga_history(
+    order_id: Optional[int] = Query(None, description="Order id"),
+    token_data: dict = Depends(create_jwt_verifier(lambda: PUBLIC_KEY["key"], logger)),
+):
+    logger.debug(f"[LOG:REST] - GET '/saga/history' called. order_id={order_id}")
+    
+    user_role = token_data.get("role")
+    if user_role != "admin":
+        raise_and_log_error(
+            logger, 
+            status.HTTP_401_UNAUTHORIZED, 
+            f"Access denied: user_role={user_role} (admin required)",
+        )
+
+    if order_id is not None:
+        if order_id in SAGA_HISTORY:
+            return {order_id: SAGA_HISTORY[order_id]}
+        else:
+            raise_and_log_error(
+                logger=logger,
+                status_code=status.HTTP_404_NOT_FOUND,
+                message=f"Saga history not found for order {order_id}"
+            )
+            
+    return SAGA_HISTORY
