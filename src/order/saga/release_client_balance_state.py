@@ -26,7 +26,7 @@ class ReleaseClientBalanceState(State):
                 "total_amount": str(self._context.total_amount),
             })
             logger.info(
-                "[CMD:PAYMENT_RELEASE:SENT] - Sent release command: ",
+                "[CMD:PAYMENT_RELEASE:SENT] - Sent release command: "
                 f"order_id={self._context.order_id}, "
                 f"client_id={self._context.client_id}, "
                 f"amount={self._context.total_amount}"

@@ -15,8 +15,14 @@ from ..sql import (
     OrderCreationResponse,
     update_order_status,
 )
-from chassis.routers import raise_and_log_error
-from chassis.messaging import RabbitMQPublisher
+from chassis.routers import (
+    get_system_metrics,
+    raise_and_log_error,
+)
+from chassis.messaging import (
+    is_rabbitmq_healthy,
+    RabbitMQPublisher
+)
 from chassis.security import create_jwt_verifier
 from chassis.sql import get_db
 from fastapi import (
@@ -27,7 +33,7 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict
 import logging 
-
+import socket
 
 PIECE_PRICE: Dict[str, float] = {
     "pieza_1": 4.75
@@ -37,44 +43,48 @@ logger = logging.getLogger(__name__)
 
 Router = APIRouter(prefix="/order", tags=["Order"])
 
-# ----------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
 # Health check
-# ----------------------------------------------------------------------
+# ------------------------------------------------------------------------------------
 @Router.get(
     "/health",
     summary="Health check endpoint",
     response_model=Message,
 )
 async def health_check():
-    logger.debug("GET '/order/health' called.")  
-    return {"detail": "Order service is running"}
+    if not is_rabbitmq_healthy(RABBITMQ_CONFIG):
+        raise_and_log_error(
+            logger=logger,
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            message="[LOG:REST] - RabbitMQ not reachable"
+        )
 
+    container_id = socket.gethostname()
+    logger.debug(f"[LOG:REST] - GET '/health' served by {container_id}")
+    return {
+        "detail": f"OK - Served by {container_id}",
+        "system_metrics": get_system_metrics()
+    }
 
 @Router.get(
     "/health/auth",
     summary="Health check endpoint (JWT protected)",
+    response_model=Message
 )
 async def health_check_auth(
     token_data: dict = Depends(create_jwt_verifier(lambda: PUBLIC_KEY["key"], logger))
 ):
-    logger.debug("GET '/order/health/auth' called.")
+    logger.debug("[LOG:REST] - GET '/health/auth' endpoint called.")
 
     user_id = token_data.get("sub")
-    user_email = token_data.get("email")
     user_role = token_data.get("role")
 
-    logger.info(f"Valid JWT → user_id={user_id}, email={user_email}, role={user_role}")
-
-    logger.info(
-        "Authenticated health check",
-        extra={"client_id": user_id}
-    )
-
+    logger.info(f"[LOG:REST] - Valid JWT: user_id={user_id}, role={user_role}")
 
     return {
-        "detail": f"Order service is running. Authenticated as {user_email} (id={user_id}, role={user_role})"
+        "detail": f"Auth service is running. Authenticated as (id={user_id}, role={user_role})",
+        "system_metrics": get_system_metrics()
     }
-
 
 # ----------------------------------------------------------------------
 # Create Order
@@ -90,13 +100,11 @@ async def create_order_endpoint(
     token_data: dict = Depends(create_jwt_verifier(lambda: PUBLIC_KEY["key"], logger)),
     db: AsyncSession = Depends(get_db),
 ):
-    logger.debug(f"POST '/order/create' called (piece_amount={order_data.piece_count})")
-
     client_id = int(token_data["sub"])
 
     logger.debug(
-        "Create order request received",
-        extra={"client_id": client_id}
+        "[LOG:REST] - POST '/order/create' called: "
+        f"client_id={client_id}, piece_amount={order_data.piece_count})"
     )
 
     db_order = await create_order(
@@ -123,12 +131,13 @@ async def create_order_endpoint(
             status=Order.STATUS_CANCELLED,
         )
         logger.error(
-            f"Failed to process payment for (client_id={db_order.client_id}, order_id={db_order.id})"
+            f"[LOG:REST] - Failed to process payment: " 
+            f"client_id={db_order.client_id}, order_id={db_order.id}"
         )
         raise_and_log_error(
             logger=logger, 
             status_code=status.HTTP_400_BAD_REQUEST, 
-            message=f"Saga failed on state {saga.get_state()}"
+            message=f"[LOG:REST] - Saga failed"
         )
 
     # Ask for pieces
@@ -153,6 +162,8 @@ async def create_order_endpoint(
             "zip": db_order.zip,
             "client_id": db_order.client_id,
         })
+
+    logger.info(f"[LOG:REST] - Order created: order_id={db_order.id}")
 
     return OrderCreationResponse(
         id=db_order.id,
