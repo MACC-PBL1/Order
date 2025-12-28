@@ -14,7 +14,13 @@ from ..sql import (
     Order,
     OrderCreationRequest,
     OrderCreationResponse,
+    OrderResponse,
     update_order_status,
+    get_order_for_update,
+    get_orders,
+    get_orders_by_client,
+    get_order_by_id,
+    acquire_cancel_lock,
 )
 from chassis.routers import (
     get_system_metrics,
@@ -30,12 +36,15 @@ from fastapi import (
     APIRouter, 
     Depends, 
     status,
-    Query
+    Query, 
+    HTTPException,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, List, Optional
 import logging 
 import socket
+
+from ..saga.registry import create_saga
 
 PIECE_PRICE: Dict[str, float] = {
     "pieza_1": 4.75
@@ -207,3 +216,113 @@ async def get_saga_history(
             )
             
     return SAGA_HISTORY
+
+
+@Router.get(
+    "",
+    summary="Get all orders",
+    response_model=List[OrderResponse],
+)
+async def get_all_orders(
+    token_data: dict = Depends(create_jwt_verifier(lambda: PUBLIC_KEY["key"], logger)),
+    db: AsyncSession = Depends(get_db),
+):
+    user_id = int(token_data["sub"])
+    user_role = token_data.get("role")
+
+    logger.debug(
+        "[LOG:REST] - GET '/order' called "
+        f"user_id={user_id}, role={user_role}"
+    )
+
+    if user_role == "admin":
+        orders = await get_orders(db)
+    else:
+        orders = await get_orders_by_client(db, user_id)
+
+    logger.info(f"[LOG:REST] - {len(orders)} orders returned")
+
+    return orders
+
+@Router.get(
+    "/{order_id}",
+    summary="Get order by id",
+    response_model=OrderResponse,
+)
+async def get_order(
+    order_id: int,
+    token_data: dict = Depends(create_jwt_verifier(lambda: PUBLIC_KEY["key"], logger)),
+    db: AsyncSession = Depends(get_db),
+):
+    user_id = int(token_data["sub"])
+    user_role = token_data.get("role")
+
+    logger.debug(
+        "[LOG:REST] - GET '/order/%s' called user_id=%s role=%s",
+        order_id,
+        user_id,
+        user_role,
+    )
+
+    order = await get_order_by_id(db, order_id)
+
+    if order is None:
+        raise_and_log_error(
+            logger,
+            status.HTTP_404_NOT_FOUND,
+            f"Order {order_id} not found",
+        )
+
+    if user_role != "admin" and order.client_id != user_id:
+        raise_and_log_error(
+            logger,
+            status.HTTP_403_FORBIDDEN,
+            "Not allowed to access this order",
+        )
+
+    return order
+
+@Router.post(
+    "/{order_id}/cancel",
+    summary="Cancel order",
+)
+async def cancel_order(
+    order_id: int,
+    token_data: dict = Depends(create_jwt_verifier(lambda: PUBLIC_KEY["key"], logger)),
+    db: AsyncSession = Depends(get_db),
+):
+    user_id = int(token_data["sub"])
+
+    locked = await acquire_cancel_lock(db, order_id, user_id)
+
+    if locked is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Order cannot be cancelled",
+        )
+
+    order_id_value = locked["order_id"]
+    client_id = locked["client_id"]
+    zip_code = locked["zip"]
+    total_amount = locked["piece_amount"] * PIECE_PRICE["pieza_1"]
+
+    ctx = StateContext(
+        order_id=order_id_value,
+        client_id=client_id,
+        total_amount=total_amount,
+        zipcode=zip_code,
+    )
+
+    saga = Saga(ctx)
+    create_saga(saga)
+    saga.process_cancel()
+
+    logger.info(
+        "[LOG:REST] - Order cancelling: order_id=%s",
+        order_id_value,
+    )
+
+    return {
+        "status": "cancelling",
+        "order_id": order_id_value,
+    }

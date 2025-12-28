@@ -5,6 +5,7 @@ RUN useradd -u 1000 -d /home/pyuser -m pyuser && \
     install -d -o pyuser -g pyuser /database && \
     apt-get update && \
     apt-get install -y git curl && \
+    apt-get install -y sqlite3 && \
     pip install --upgrade pip
 
 # Create volume

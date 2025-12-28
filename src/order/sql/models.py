@@ -16,8 +16,12 @@ class Order(Base):
     STATUS_IN_PROGRESS = "In Progress"
     STATUS_COMPLETED = "Completed"
     STATUS_CANCELLED = "Cancelled"
+    STATUS_CANCELLING = "Cancelling"  #SEMANTIC LOCK
+    STATUS_DELIVERED = "delivered"
+    STATUS_CANCEL_FAILED = "Cancel failed"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+   # piece_type: Mapped[str] = mapped_column(String(1))  # "A" | "B"
     piece_amount: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=STATUS_CREATED)
     city: Mapped[str] = mapped_column(String, nullable=False)
