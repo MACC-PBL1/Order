@@ -1,4 +1,4 @@
-from .models import Order
+from .models import Order, OrderPiece
 from chassis.sql import delete_element_by_id
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional, List
@@ -7,15 +7,12 @@ from sqlalchemy import select, update
 async def create_order(
     db: AsyncSession, 
     client_id: int, 
-    piece_amount: int,
-   # piece_type: str,
     city: str,
     street: str,
     zip: str,
+    pieces: list[dict],
 ) -> Order:
     db_order = Order(
-        piece_amount=piece_amount,
-     #   piece_type = piece_type,
         client_id=client_id,
         city=city,
         street=street,
@@ -23,8 +20,20 @@ async def create_order(
     )
     db.add(db_order)
     await db.flush()
+
+    for piece in pieces:
+        db.add(
+            OrderPiece(
+                order_id=db_order.id,
+                piece_type=piece.piece_type,
+                quantity=piece.quantity,
+            )
+        )
+
+    await db.commit()
     await db.refresh(db_order)
     return db_order
+
 
 async def get_order(
     db: AsyncSession,
@@ -94,7 +103,6 @@ async def acquire_cancel_lock(
             Order.id,
             Order.client_id,
             Order.zip,
-            Order.piece_amount,
         )
     )
 
@@ -108,5 +116,13 @@ async def acquire_cancel_lock(
         "order_id": row.id,
         "client_id": row.client_id,
         "zip": row.zip,
-        "piece_amount": row.piece_amount,
     }
+
+async def get_order_pieces(
+    db: AsyncSession,
+    order_id: int,
+) -> list[OrderPiece]:
+    result = await db.execute(
+        select(OrderPiece).where(OrderPiece.order_id == order_id)
+    )
+    return result.scalars().all()

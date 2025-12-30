@@ -29,6 +29,7 @@ PUBLISHING_QUEUES: Dict[LiteralString, LiteralString] = {
     "warehouse_cancel": "warehouse.cancel",
     "order_cancel_completed": "order.cancel_completed",
     "order_cancel_failed": "order.cancel_failed",
+    "order_created": "order.created"
 
 }
 LISTENING_QUEUES: Dict[LiteralString, LiteralString] = {

@@ -21,6 +21,7 @@ from ..sql import (
     get_orders_by_client,
     get_order_by_id,
     acquire_cancel_lock,
+    get_order_pieces,
 )
 from chassis.routers import (
     get_system_metrics,
@@ -47,7 +48,8 @@ import socket
 from ..saga.registry import create_saga
 
 PIECE_PRICE: Dict[str, float] = {
-    "pieza_1": 4.75
+    "A": 4.75,
+    "B": 6.20,
 }
 
 logger = logging.getLogger(__name__)
@@ -114,24 +116,29 @@ async def create_order_endpoint(
     client_id = int(token_data["sub"])
 
     logger.debug(
-        "[LOG:REST] - POST '/order/create' called: "
-        f"client_id={client_id}, piece_amount={order_data.piece_count})"
+         "[LOG:REST] - POST '/order/create' called: "
+         f"client_id={client_id})"
     )
 
     db_order = await create_order(
         db=db, 
         client_id=client_id, 
-        piece_amount=order_data.piece_count,
         city=order_data.city,
         street=order_data.street,
-        zip=order_data.zip
+        zip=order_data.zip,
+        pieces=order_data.pieces,
+    )
+
+    total_amount = sum(
+        piece.quantity * PIECE_PRICE[piece.piece_type]
+        for piece in order_data.pieces
     )
 
     ctx = StateContext(
         order_id=db_order.id,
         client_id=db_order.client_id,
-        total_amount=db_order.piece_amount * PIECE_PRICE["pieza_1"],
-        zipcode=db_order.zip
+        total_amount=total_amount,
+        zipcode=db_order.zip,
     )
     saga = Saga(ctx)
 
@@ -152,14 +159,34 @@ async def create_order_endpoint(
         )
 
     # Ask for pieces
+    # with RabbitMQPublisher(
+    #     queue=PUBLISHING_QUEUES["piece_request"],
+    #     rabbitmq_config=RABBITMQ_CONFIG
+    # ) as publisher:
+    #     publisher.publish({
+    #         "order_id": db_order.id,
+    #         "amount": db_order.piece_amount,
+    #     })
+    pieces_payload = [
+        {
+            "piece_type": piece.piece_type,
+            "quantity": piece.quantity,
+        }
+        for piece in order_data.pieces
+        ]
+
+    
     with RabbitMQPublisher(
-        queue=PUBLISHING_QUEUES["piece_request"],
-        rabbitmq_config=RABBITMQ_CONFIG
+        queue=PUBLISHING_QUEUES["order_created"],
+        rabbitmq_config=RABBITMQ_CONFIG,
     ) as publisher:
         publisher.publish({
             "order_id": db_order.id,
-            "amount": db_order.piece_amount,
+            "client_id": db_order.client_id,
+            "zip": db_order.zip,
+            "pieces": pieces_payload,
         })
+
 
     # Create delivery
     with RabbitMQPublisher(
@@ -178,9 +205,9 @@ async def create_order_endpoint(
 
     return OrderCreationResponse(
         id=db_order.id,
-        piece_amount=db_order.piece_amount,
         status=db_order.status,
         client_id=db_order.client_id,
+        pieces=pieces_payload,
     )
     
 # ------------------------------------------------------------------------------------
@@ -240,9 +267,34 @@ async def get_all_orders(
     else:
         orders = await get_orders_by_client(db, user_id)
 
-    logger.info(f"[LOG:REST] - {len(orders)} orders returned")
+    response: list[OrderResponse] = []
 
-    return orders
+    for order in orders:
+        pieces = await get_order_pieces(db, order.id)
+
+        response.append(
+            OrderResponse(
+                id=order.id,
+                client_id=order.client_id,
+                status=order.status,
+                city=order.city,
+                street=order.street,
+                zip=order.zip,
+                pieces=[
+                    {
+                        "piece_type": p.piece_type,
+                        "quantity": p.quantity,
+                    }
+                    for p in pieces
+                ],
+            )
+        )
+
+
+    logger.info(f"[LOG:REST] - {len(response)} orders returned")
+
+    return response
+
 
 @Router.get(
     "/{order_id}",
@@ -304,7 +356,13 @@ async def cancel_order(
     order_id_value = locked["order_id"]
     client_id = locked["client_id"]
     zip_code = locked["zip"]
-    total_amount = locked["piece_amount"] * PIECE_PRICE["pieza_1"]
+
+    pieces = await get_order_pieces(db, order_id_value)
+
+    total_amount = sum(
+        piece.quantity * PIECE_PRICE[piece.piece_type]
+        for piece in pieces
+    )
 
     ctx = StateContext(
         order_id=order_id_value,

@@ -7,13 +7,15 @@ from .crud import (
     get_orders_by_client,
     get_order_by_id,
     acquire_cancel_lock,
+    get_order_pieces,
 )
-from .models import Order
+from .models import Order, OrderPiece
 from .schemas import (
     Message,
     OrderCreationRequest,
     OrderCreationResponse,
     OrderResponse,
+    OrderPieceSchema,
 )
 from typing import (
     List,
@@ -28,10 +30,13 @@ __all__: List[LiteralString] = [
     "OrderCreationRequest",
     "OrderCreationResponse",
     "OrderResponse",
+    "OrderPiece",
+    "OrderPieceSchema",
     "update_order_status",
     "acquire_cancel_lock",
     "get_order_for_update",
     "get_orders",
     "get_orders_by_client",
     "get_order_by_id",
+    "get_order_pieces",
 ]
