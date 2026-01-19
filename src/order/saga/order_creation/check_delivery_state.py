@@ -1,11 +1,11 @@
-from .base_state import State
+from ..base_state import State
 from .process_approved_state import ProcessApprovedState
 from .release_client_balance_state import ReleaseClientBalanceState
 
 class CheckDeliveryState(State):
     """Check if delivery zipcode is valid"""
 
-    def on_event(self, event: State) -> State:
+    async def on_event(self, event: State) -> State:
         if str(event) != str(self):
             return self
         

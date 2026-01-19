@@ -19,33 +19,9 @@ RABBITMQ_CONFIG: RabbitMQConfig = {
     "client_key": Path(client_key_path) if (client_key_path := os.getenv("RABBITMQ_CLIENT_KEY_PATH", None)) is not None else None,
     "prefetch_count": int(os.getenv("RABBITMQ_PREFETCH_COUNT", 10))
 }
-
-PUBLISHING_QUEUES: Dict[LiteralString, LiteralString] = {
-    "payment_request": "payment.request",
-    "piece_request": "warehouse.request_piece",
-    "delivery_create": "delivery.create",
-    "delivery_update": "delivery.update_status",
-    "delivery_cancel": "delivery.cancel",
-    "warehouse_cancel": "warehouse.cancel",
-    "order_cancel_completed": "order.cancel_completed",
-    "order_cancel_failed": "order.cancel_failed",
-    "order_created": "order.created"
-
-}
 LISTENING_QUEUES: Dict[LiteralString, LiteralString] = {
-    "order_completed": "warehouse.order_completed",
-    "order_status_update": "order.update_status",
+    "order_status_update": "order.status.update",
     "public_key": "client.public_key.order",
-   
-    "payment_released": "payment.released",
-    "payment_failed": "payment.failed",
-    "warehouse_cancelled": "warehouse.cancelled",
-    "delivery_cancelled": "delivery.cancelled",
-    "delivery_cancel_rejected": "delivery.cancel_rejected",
-    "delivery_not_found": "delivery.not_found",
-    "order_cancel_completed": "order.cancel_completed",
-    "order_cancel_failed": "order.cancel_failed",
-
 }
 
 # JWT Public Key #######################################################################

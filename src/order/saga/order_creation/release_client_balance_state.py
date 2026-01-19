@@ -1,5 +1,5 @@
-from ..global_vars import RABBITMQ_CONFIG
-from .base_state import State
+from ...global_vars import RABBITMQ_CONFIG
+from ..base_state import State
 from .order_cancelled_state import OrderCancelledState
 from chassis.messaging import RabbitMQPublisher
 import logging
@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 class ReleaseClientBalanceState(State):
     """Compensation state - release reserved balance"""
 
-    def on_event(self, event: State) -> State:
+    async def on_event(self, event: State) -> State:
         if str(event) != str(self):
             return self
         

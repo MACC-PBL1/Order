@@ -1,7 +1,7 @@
-from ..global_vars import RABBITMQ_CONFIG
-from .base_state import State
-from .check_delivery_state import CheckDeliveryState
-from .order_cancelled_state import OrderCancelledState
+from ...global_vars import RABBITMQ_CONFIG
+from ..base_state import State
+from .check_delivery_status_state import CheckDeliveryStatus
+from .reject_cancellation_state import RejectCancellationState
 from chassis.messaging import (
     MessageType,
     RabbitMQPublisher,
@@ -12,25 +12,19 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-class CheckBalanceState(State):
-    """Check if customer has sufficient credit"""
-
-    def on_event(self, event: State) -> State:
+class CheckWarehouseSpaceState(State):
+    async def on_event(self, event: State) -> State:
         if str(event) != str(self):
             return self
 
-        if self._ask_balance() == True:
-            return CheckDeliveryState(self._context)
-        else:
-            return OrderCancelledState(self._context)
-    
-    def _ask_balance(self) -> bool:
-        response_queue = f"sagas-payment-{self._context.client_id}-{self._context.order_id}"
-        response_exchange = "payment_sagas"
+        return CheckDeliveryStatus(self._context) if await self._ask_space() == True else RejectCancellationState(self._context)
+
+    async def _ask_space(self) -> bool:
+        response_queue = f"sagas-warehouse-{self._context.client_id}-{self._context.order_id}"
+        response_exchange = "warehouse_sagas"
         response_exchange_type = "topic"
         response_routing_key = f"{self._context.client_id}.{self._context.order_id}"
-
-        payment_ok = False
+        warehouse_ok = False
 
         @register_queue_handler(
             queue=response_queue,
@@ -38,41 +32,38 @@ class CheckBalanceState(State):
             exchange_type=response_exchange_type,
             routing_key=response_routing_key,
         )
-        def payment_response(message: MessageType) -> None:
-            nonlocal payment_ok
+        def _warehouse_response(message: MessageType) -> None:
+            nonlocal warehouse_ok
             assert (status := message.get("status")) is not None, "'status' field should be present."
-            if (payment_ok := (status == "OK")):
+            if (warehouse_ok := (status == "OK")):
                 logger.info(
-                    "[EVENT:PAYMENT_RESERVE:SUCCESS] - Payment reserved successfully: "
+                    "[EVENT:WAREHOUSE_RESERVE:SUCCESS] - Warehouse reserved successfully: "
                     f"order_id={self._context.order_id}"
                 )
             else:
                 logger.info(
-                    "[EVENT:PAYMENT_RESERVE:FAILED] - Payment reserve failed: "
+                    "[EVENT:WAREHOUSE_RESERVE:FAILED] - Warehouse reserve failed: "
                     f"order_id={self._context.order_id}, "
                     f"status='{status}'"
                 )
-
 
         with RabbitMQPublisher(
             queue="",
             rabbitmq_config=RABBITMQ_CONFIG,
             exchange="cmd",
             exchange_type="topic",
-            routing_key="payment.reserve",
+            routing_key="warehouse.reserve",
+            auto_delete_queue=True,
         ) as publisher:
             publisher.publish({
-                "client_id": str(self._context.client_id),
-                "total_amount": str(self._context.total_amount),
+                "order_id": str(self._context.order_id),
                 "response_exchange": response_exchange,
                 "response_exchange_type": response_exchange_type,
                 "response_routing_key": response_routing_key
             })
             logger.info(
-                "[CMD:PAYMENT_RESERVE:SENT] - Sent reserve command: "
+                "[CMD:WAREHOUSE_RESERVE:SENT] - Sent reserve command: "
                 f"order_id={self._context.order_id}, "
-                f"client_id={self._context.client_id}, "
-                f"amount={self._context.total_amount}"
             )
 
         start_rabbitmq_listener(
@@ -81,4 +72,4 @@ class CheckBalanceState(State):
             one_use=True,
         )
 
-        return payment_ok
+        return warehouse_ok

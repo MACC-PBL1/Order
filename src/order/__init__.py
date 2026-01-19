@@ -61,8 +61,8 @@ async def lifespan(__app: FastAPI):
                 
             except Exception as e:
                 logger.error(f"[LOG:ORDER] - Failed to register with Consul: Reason={e}", exc_info=True)
-        except Exception:
-            logger.error("[LOG:ORDER] - Could not create tables at startup")
+        except Exception as e:
+            logger.error(f"[LOG:ORDER] - Could not create tables at startup: Reason={e}", exc_info=True)
         yield
     finally:
         logger.info("[LOG:ORDER] - Shutting down database")

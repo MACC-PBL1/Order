@@ -3,14 +3,16 @@ from abc import (
     abstractmethod,
 )
 from dataclasses import dataclass
+from typing import Optional
 
 @dataclass
 class StateContext:
     """Context that flows through the saga"""
     order_id: int
     client_id: int
-    total_amount: float
-    zipcode: str
+    admin: Optional[bool]
+    total_amount: Optional[float]
+    zipcode: Optional[str]
 
 class State(ABC):
     """
@@ -22,7 +24,7 @@ class State(ABC):
         self._context = context
 
     @abstractmethod
-    def on_event(self, event: 'State') -> 'State':
+    async def on_event(self, event: 'State') -> 'State':
         """
         Handle events that are delegated to this State.
         """

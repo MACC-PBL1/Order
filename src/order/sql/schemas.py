@@ -5,7 +5,7 @@ class Message(BaseModel):
     system_metrics: dict
 
 class OrderPieceSchema(BaseModel):
-    piece_type: str  # "A" | "B"
+    type: str
     quantity: int
 
 class OrderCreationRequest(BaseModel):
@@ -16,15 +16,12 @@ class OrderCreationRequest(BaseModel):
 
 class OrderCreationResponse(BaseModel):
     id: int
+    pieces: list[OrderPieceSchema]
     status: str
     client_id: int
-    pieces: list[OrderPieceSchema]
 
-class OrderResponse(BaseModel):
-    id: int
-    client_id: int
-    status: str
-    city: str
-    street: str
-    zip: str
-    pieces: list[OrderPieceSchema]
+class OrderCancellationRequest(BaseModel):
+    order_id: int
+
+class OrderCancellationResponse(BaseModel):
+    order_id: int
