@@ -12,7 +12,7 @@ from chassis.sql import (
     Base, 
     Engine,
 )
-from chassis.consul import ConsulClient 
+from chassis.consul import CONSUL_CLIENT 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from hypercorn.asyncio import serve
@@ -55,10 +55,11 @@ async def lifespan(__app: FastAPI):
                 logger.error(f"[LOG:ORDER] - Could not start the RabbitMQ listeners: Reason={e}", exc_info=True)
             logger.info("[LOG:ORDER] - Registering service to Consul...")
             try:
-                service_port = int(os.getenv("PORT", "8000"))
-                consul = ConsulClient(logger=logger)
-                consul.register_service(service_name="order-service", port=service_port, health_path="/order/health")
-                
+                CONSUL_CLIENT.register_service(
+                    service_name="order",
+                    ec2_address=os.getenv("HOST_IP", "localhost"),
+                    service_port=int(os.getenv("HOST_PORT", 80)),
+                )
             except Exception as e:
                 logger.error(f"[LOG:ORDER] - Failed to register with Consul: Reason={e}", exc_info=True)
         except Exception as e:
