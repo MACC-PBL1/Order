@@ -21,6 +21,7 @@ from threading import Thread
 import asyncio
 import logging.config
 import os
+import socket
 
 # Configure logging ################################################################################
 logging.config.fileConfig(os.path.join(os.path.dirname(__file__), "logging.ini"))
@@ -57,8 +58,8 @@ async def lifespan(__app: FastAPI):
             try:
                 CONSUL_CLIENT.register_service(
                     service_name="order",
-                    ec2_address=os.getenv("HOST_IP", "localhost"),
-                    service_port=int(os.getenv("HOST_PORT", 80)),
+                    ec2_address=os.getenv("HOST_IP", socket.gethostbyname(socket.gethostname())),
+                    service_port=int(os.getenv("HOST_PORT", 8000)),
                 )
             except Exception as e:
                 logger.error(f"[LOG:ORDER] - Failed to register with Consul: Reason={e}", exc_info=True)
