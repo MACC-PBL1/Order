@@ -8,33 +8,18 @@ from chassis.messaging import RabbitMQPublisher
 from chassis.sql import SessionLocal
 
 class ApproveCancellation(State):
-
     @staticmethod
-    def _return_money(client_id: int, order_id: int, amount: float) -> None:
+    def _notify_cancellation_approved(order_id: int, client_id: int, total_amount: float) -> None:
         with RabbitMQPublisher(
             queue="",
             rabbitmq_config=RABBITMQ_CONFIG,
-            exchange="cmd",
-            exchange_type="topic",
-            routing_key="payment.release",
+            exchange="cancellation-approved",
+            exchange_type="fanout",
         ) as publisher:
             publisher.publish({
-                "client_id": client_id,
                 "order_id": order_id,
-                "total_amount": amount,
-            })
-
-    @staticmethod
-    def _send_cancel(order_id: int) -> None:
-        with RabbitMQPublisher(
-            queue="",
-            rabbitmq_config=RABBITMQ_CONFIG,
-            exchange="cmd",
-            exchange_type="topic",
-            routing_key="warehouse.cancel",
-        ) as publisher:
-            publisher.publish({
-                "order_id": order_id
+                "client_id": client_id,
+                "total_amount": total_amount
             })
 
     async def on_event(self, event: State) -> State:
@@ -49,12 +34,10 @@ class ApproveCancellation(State):
                 status=Order.STATUS_CANCELLED,
             )
 
-        # TODO: Hau ebentu bezala jarri!
-        ApproveCancellation._return_money(
-            client_id=self._context.client_id,
+        ApproveCancellation._notify_cancellation_approved(
             order_id=self._context.order_id,
-            amount=self._context.total_amount,
+            client_id=self._context.client_id,
+            total_amount=self._context.total_amount,
         )
-        ApproveCancellation._send_cancel(self._context.order_id)
 
         return self
